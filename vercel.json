@@ -1,0 +1,25 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/backup/run",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/loans/npl-scan",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/loans/late-fee",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/messages/retry",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/deposits/maturity-scan",
+      "schedule": "0 8 * * *"
+    }
+  ]
+}

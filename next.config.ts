@@ -1,0 +1,59 @@
+import type { NextConfig } from "next";
+// @sentry/nextjs wraps the Next.js config to inject source-map upload + the
+// Sentry server-runtime. The wrap is a no-op when SENTRY_DSN is unset (the
+// SDK short-circuits), so this stays safe in dev / CI / preview.
+import { withSentryConfig } from "@sentry/nextjs";
+// next-intl plugin: wires the i18n/request.ts config into the Next.js server
+// runtime so messages can be loaded per-request based on the locale cookie.
+import createNextIntlPlugin from "next-intl/plugin";
+
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
+
+const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '20mb',
+    },
+  },
+
+  // next.config.js
+
+  allowedDevOrigins: ['192.168.0.100'],
+
+  // nodemailer uses Node built-ins (net/tls/crypto); keep it out of the
+  // Server Components / Route Handlers bundle so they resolve at runtime.
+  //
+  // pdfkit -> fontkit is built by Parcel against `@swc/helpers` whose
+  // `applyDecoratedDescriptor` named export is mis-bundled by Turbopack and
+  // ends up undefined at runtime, crashing any Server Action that imports
+  // the receipt generator (see lib/pdf/moneyReceiptPdf.ts). Marking both as
+  // server-external packages forces Next.js to `require()` them straight from
+  // node_modules at runtime, bypassing the broken SWC helper path entirely.
+  serverExternalPackages: ['nodemailer', 'resend', 'pdfkit', 'fontkit'],
+
+  // Enable the standalone build output so the Dockerfile can ship a minimal
+  // image (only the JS actually imported by the app, no full node_modules).
+  // See Dockerfile → "runner" stage.
+  output: 'standalone',
+
+  // NOTE (phase4-infra / Roadmap item 1): the previous
+  //   typescript: { ignoreBuildErrors: true }
+  //   eslint:     { ignoreDuringBuilds: true }
+  // blocks have been REMOVED. TypeScript errors now FAIL the build — this is
+  // the desired behaviour so type drift can't slip onto `main`. Run
+  //   `npx tsc --noEmit`
+  // locally before pushing if you want the same check without the full build.
+};
+
+// Sentry wrapper options. `silent: true` keeps the build log clean; the
+// SDK reads SENTRY_DSN / SENTRY_AUTH_TOKEN from env at build time. When
+// SENTRY_AUTH_TOKEN is missing the source-map upload is skipped silently.
+//
+// Note: Sentry v10 dropped BOTH `disableClientWebpackPlugin` and
+// `disableServerWebpackPlugin` from `SentryBuildOptions`. The webpack/turbopack
+// plugins are now always wired in but short-circuit themselves when no auth
+// token is present (so local dev builds don't try to hit Sentry's API).
+// Effectively the same behaviour as before, with a smaller surface area.
+export default withSentryConfig(withNextIntl(nextConfig), {
+  silent: true,
+});

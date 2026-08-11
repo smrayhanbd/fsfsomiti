@@ -1,0 +1,663 @@
+/* =====================================================================
+   SOMITI MS — PREMIUM ENTERPRISE SAAS DESIGN SYSTEM
+   Digital Savings Cooperative Management Platform
+   Identity: Royal Blue → Violet → Warm Gold (Trust Ribbon)
+   Reference: Linear · Stripe · Mercury · Ramp · Notion
+   ===================================================================== */
+
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------------
+   THEME MAP — exposes raw tokens to Tailwind utilities & shadcn primitives
+   --------------------------------------------------------------------- */
+@theme inline {
+  --color-background: var(--bg-base);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-heading);
+
+  /* shadcn semantic aliases (primitives read these) */
+  --color-card: var(--bg-surface);
+  --color-card-foreground: var(--text-primary);
+  --color-popover: var(--bg-elevated);
+  --color-popover-foreground: var(--text-primary);
+  --color-primary: var(--brand-primary);
+  --color-primary-foreground: var(--brand-primary-foreground);
+  --color-secondary: var(--bg-subtle);
+  --color-secondary-foreground: var(--text-primary);
+  --color-muted: var(--bg-subtle);
+  --color-muted-foreground: var(--text-muted);
+  --color-accent: var(--bg-subtle);
+  --color-accent-foreground: var(--text-primary);
+  --color-destructive: var(--status-debit);
+  --color-border: var(--border-base);
+  --color-input: var(--control-bg);
+  --color-ring: var(--brand-primary);
+
+  /* sidebar tokens (AppSidebar / PortalSidebar) */
+  --color-sidebar: var(--bg-surface);
+  --color-sidebar-foreground: var(--text-primary);
+  --color-sidebar-primary: var(--brand-primary);
+  --color-sidebar-primary-foreground: var(--brand-primary-foreground);
+  --color-sidebar-accent: var(--bg-subtle);
+  --color-sidebar-accent-foreground: var(--text-primary);
+  --color-sidebar-border: var(--border-base);
+  --color-sidebar-ring: var(--brand-primary);
+
+  /* chart palette (no rainbow — derived from brand semantics) */
+  --color-chart-1: var(--chart-blue);
+  --color-chart-2: var(--chart-violet);
+  --color-chart-3: var(--chart-gold);
+  --color-chart-4: var(--chart-emerald);
+  --color-chart-5: var(--chart-crimson);
+
+  /* radius scale */
+  --radius: var(--radius-lg);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+  --radius-3xl: var(--radius-3xl);
+  --radius-4xl: var(--radius-4xl);
+}
+
+/* =====================================================================
+   LIGHT THEME
+   Calmer, paper-white take on the same identity (for accessibility &
+   daytime use). Dark is the hero theme; light is a faithful echo.
+   ===================================================================== */
+:root {
+  /* ---- Depth surfaces (3 layers only) ---- */
+  --bg-base: oklch(0.985 0.003 264);        /* soft paper white, cool tint */
+  --bg-surface: oklch(1 0 0);               /* cards */
+  --bg-elevated: oklch(0.997 0.002 264);    /* dialogs / menus */
+  --bg-subtle: oklch(0.965 0.005 264);      /* muted fills, table stripes */
+  --bg-inset: oklch(0.955 0.006 264);       /* inset wells, code */
+
+  /* ---- Text ---- */
+  --text-primary: oklch(0.21 0.03 264);     /* near-navy ink */
+  --text-secondary: oklch(0.42 0.02 264);
+  --text-muted: oklch(0.55 0.015 264);
+  --text-faint: oklch(0.68 0.01 264);
+
+  /* ---- Brand ---- */
+  --brand-primary: oklch(0.46 0.21 264);            /* royal blue */
+  --brand-primary-hover: oklch(0.41 0.22 264);
+  --brand-primary-foreground: oklch(0.99 0.005 264);
+  --brand-violet: oklch(0.52 0.24 300);             /* violet accent */
+  --brand-gold: oklch(0.78 0.14 80);                /* warm gold */
+  --brand-gold-foreground: oklch(0.27 0.05 80);
+
+  /* gradient stops (used by TrustRibbon + brand mark) */
+  --gradient-blue: oklch(0.5 0.22 264);
+  --gradient-violet: oklch(0.55 0.25 300);
+  --gradient-gold: oklch(0.82 0.15 80);
+
+  /* ---- Status (color-independent; always paired with a label) ---- */
+  --status-success: oklch(0.6 0.15 160);     /* emerald — credit */
+  --status-debit: oklch(0.58 0.22 25);       /* crimson — debit */
+  --status-warning: oklch(0.72 0.16 75);     /* amber */
+  --status-info: oklch(0.58 0.16 230);       /* sky */
+  --status-success-fg: oklch(0.34 0.1 160);
+  --status-debit-fg: oklch(0.45 0.2 25);
+  --status-warning-fg: oklch(0.42 0.12 75);
+  --status-info-fg: oklch(0.4 0.12 230);
+
+  /* ---- Border / control ---- */
+  --border-base: oklch(0.91 0.006 264);
+  --border-strong: oklch(0.86 0.008 264);
+  --control-bg: oklch(0.975 0.003 264);
+
+  /* ---- Chart palette ---- */
+  --chart-blue: oklch(0.5 0.2 264);
+  --chart-violet: oklch(0.56 0.22 300);
+  --chart-gold: oklch(0.75 0.15 80);
+  --chart-emerald: oklch(0.62 0.14 160);
+  --chart-crimson: oklch(0.6 0.2 25);
+
+  /* ---- Radius scale ---- */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.5rem;
+  --radius-4xl: 2rem;
+
+  /* ---- Shadows (elevation) ---- */
+  --shadow-xs: 0 1px 2px 0 oklch(0.21 0.03 264 / 0.06);
+  --shadow-sm: 0 1px 3px 0 oklch(0.21 0.03 264 / 0.08), 0 1px 2px -1px oklch(0.21 0.03 264 / 0.08);
+  --shadow-md: 0 4px 12px -2px oklch(0.21 0.03 264 / 0.1), 0 2px 6px -2px oklch(0.21 0.03 264 / 0.06);
+  --shadow-lg: 0 12px 28px -6px oklch(0.21 0.03 264 / 0.14), 0 6px 12px -6px oklch(0.21 0.03 264 / 0.08);
+  --shadow-xl: 0 24px 48px -12px oklch(0.21 0.03 264 / 0.2);
+  --shadow-brand: 0 8px 24px -6px oklch(0.46 0.21 264 / 0.35);
+  --shadow-gold: 0 8px 24px -6px oklch(0.78 0.14 80 / 0.35);
+
+  /* ---- Glass / blur ---- */
+  --glass-bg: oklch(1 0 0 / 0.7);
+  --glass-border: oklch(1 0 0 / 0.5);
+  --blur-glass: 16px;
+
+  /* ---- Motion ---- */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+}
+
+/* =====================================================================
+   DARK THEME — HERO (Premium Enterprise Dark SaaS)
+   ===================================================================== */
+.dark {
+  /* ---- Depth surfaces (3 layers only) ---- */
+  --bg-base: oklch(0.16 0.02 264);           /* deep navy #08091A family */
+  --bg-surface: oklch(0.2 0.022 264);        /* cards — lifted */
+  --bg-elevated: oklch(0.235 0.025 264);     /* dialogs / menus */
+  --bg-subtle: oklch(0.24 0.022 264);        /* muted fills, stripes */
+  --bg-inset: oklch(0.175 0.02 264);         /* inset wells */
+
+  /* ---- Text ---- */
+  --text-primary: oklch(0.97 0.005 264);
+  --text-secondary: oklch(0.78 0.012 264);
+  --text-muted: oklch(0.62 0.015 264);
+  --text-faint: oklch(0.48 0.015 264);
+
+  /* ---- Brand (brightened for dark ground) ---- */
+  --brand-primary: oklch(0.62 0.19 264);
+  --brand-primary-hover: oklch(0.68 0.2 264);
+  --brand-primary-foreground: oklch(0.16 0.02 264);
+  --brand-violet: oklch(0.66 0.22 300);
+  --brand-gold: oklch(0.82 0.14 80);
+  --brand-gold-foreground: oklch(0.22 0.04 80);
+
+  --gradient-blue: oklch(0.6 0.22 264);
+  --gradient-violet: oklch(0.65 0.24 300);
+  --gradient-gold: oklch(0.84 0.15 80);
+
+  /* ---- Status (translucent fills + bright fg) ---- */
+  --status-success: oklch(0.7 0.16 160);
+  --status-debit: oklch(0.68 0.21 25);
+  --status-warning: oklch(0.8 0.16 75);
+  --status-info: oklch(0.7 0.15 230);
+  --status-success-fg: oklch(0.78 0.15 160);
+  --status-debit-fg: oklch(0.75 0.18 25);
+  --status-warning-fg: oklch(0.84 0.15 75);
+  --status-info-fg: oklch(0.78 0.14 230);
+
+  /* ---- Border / control ---- */
+  --border-base: oklch(1 0 0 / 0.08);
+  --border-strong: oklch(1 0 0 / 0.14);
+  --control-bg: oklch(1 0 0 / 0.05);
+
+  /* ---- Chart palette (brightened) ---- */
+  --chart-blue: oklch(0.62 0.2 264);
+  --chart-violet: oklch(0.68 0.22 300);
+  --chart-gold: oklch(0.8 0.15 80);
+  --chart-emerald: oklch(0.7 0.15 160);
+  --chart-crimson: oklch(0.68 0.2 25);
+
+  /* ---- Shadows (deeper, cooler) ---- */
+  --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.3);
+  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.4), 0 1px 2px -1px oklch(0 0 0 / 0.4);
+  --shadow-md: 0 4px 12px -2px oklch(0 0 0 / 0.5), 0 2px 6px -2px oklch(0 0 0 / 0.4);
+  --shadow-lg: 0 12px 28px -6px oklch(0 0 0 / 0.55), 0 6px 12px -6px oklch(0 0 0 / 0.4);
+  --shadow-xl: 0 24px 48px -12px oklch(0 0 0 / 0.6);
+  --shadow-brand: 0 8px 28px -6px oklch(0.62 0.19 264 / 0.45);
+  --shadow-gold: 0 8px 24px -6px oklch(0.82 0.14 80 / 0.3);
+
+  /* ---- Glass / blur ---- */
+  --glass-bg: oklch(0.2 0.022 264 / 0.7);
+  --glass-border: oklch(1 0 0 / 0.1);
+}
+
+/* =====================================================================
+   BASE LAYER
+   ===================================================================== */
+@layer base {
+  * {
+    border-color: var(--border-base);
+    outline-color: color-mix(in oklch, var(--brand-primary) 50%, transparent);
+  }
+  *:focus-visible {
+    outline: 2px solid var(--brand-primary);
+    outline-offset: 2px;
+  }
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-feature-settings: "cv11", "ss01";
+  }
+  /* Headings use the display face */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading), var(--font-sans);
+    letter-spacing: -0.02em;
+  }
+  /* Scrollbars — slim, on-brand */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in oklch, var(--text-muted) 30%, transparent);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklch, var(--text-muted) 50%, transparent);
+    background-clip: padding-box;
+  }
+}
+
+/* =====================================================================
+   SOMITI UTILITY LAYER — typed design tokens as utilities
+   Use these instead of hardcoding colors anywhere in the app.
+   ===================================================================== */
+@layer utilities {
+  /* ---- Surfaces ---- */
+  .bg-base { background-color: var(--bg-base); }
+  .bg-surface { background-color: var(--bg-surface); }
+  .bg-elevated { background-color: var(--bg-elevated); }
+  .bg-subtle { background-color: var(--bg-subtle); }
+  .bg-inset { background-color: var(--bg-inset); }
+
+  /* ---- Text ---- */
+  .text-primary-ink { color: var(--text-primary); }
+  .text-secondary-ink { color: var(--text-secondary); }
+  .text-muted-ink { color: var(--text-muted); }
+  .text-faint-ink { color: var(--text-faint); }
+
+  /* ---- Brand ---- */
+  .text-brand { color: var(--brand-primary); }
+  .text-violet-brand { color: var(--brand-violet); }
+  .text-gold { color: var(--brand-gold); }
+  .bg-brand { background-color: var(--brand-primary); }
+  .bg-violet-brand { background-color: var(--brand-violet); }
+  .bg-gold { background-color: var(--brand-gold); }
+  .border-brand { border-color: var(--brand-primary); }
+
+  /* ---- Brand gradient (Trust Ribbon + brand marks + CTAs) ---- */
+  .trust-gradient {
+    background: linear-gradient(
+      90deg,
+      var(--gradient-blue) 0%,
+      var(--gradient-violet) 50%,
+      var(--gradient-gold) 100%
+    );
+  }
+  .brand-gradient {
+    background: linear-gradient(135deg, var(--gradient-blue), var(--gradient-violet));
+  }
+  .brand-gradient-soft {
+    background: linear-gradient(135deg,
+      color-mix(in oklch, var(--gradient-blue) 16%, transparent),
+      color-mix(in oklch, var(--gradient-violet) 16%, transparent));
+  }
+  .text-brand-gradient {
+    background: linear-gradient(90deg, var(--gradient-blue), var(--gradient-violet) 60%, var(--gradient-gold));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* ---- Status (semantic, color-independent) ---- */
+  .text-success { color: var(--status-success-fg); }
+  .text-debit { color: var(--status-debit-fg); }
+  .text-warning { color: var(--status-warning-fg); }
+  .text-info { color: var(--status-info-fg); }
+  .bg-success-soft { background-color: color-mix(in oklch, var(--status-success) 14%, transparent); }
+  .bg-debit-soft { background-color: color-mix(in oklch, var(--status-debit) 14%, transparent); }
+  .bg-warning-soft { background-color: color-mix(in oklch, var(--status-warning) 14%, transparent); }
+  .bg-info-soft { background-color: color-mix(in oklch, var(--status-info) 14%, transparent); }
+  .border-success { border-color: color-mix(in oklch, var(--status-success) 40%, transparent); }
+  .border-debit { border-color: color-mix(in oklch, var(--status-debit) 40%, transparent); }
+  .border-warning { border-color: color-mix(in oklch, var(--status-warning) 40%, transparent); }
+
+  /* ---- Glass surface ---- */
+  .glass {
+    background-color: var(--glass-bg);
+    backdrop-filter: blur(var(--blur-glass)) saturate(140%);
+    -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(140%);
+    border: 1px solid var(--glass-border);
+  }
+
+  /* ---- Shadows ---- */
+  .shadow-elevate { box-shadow: var(--shadow-md); }
+  .shadow-lift { box-shadow: var(--shadow-lg); }
+  .shadow-pop { box-shadow: var(--shadow-xl); }
+  .shadow-brand-glow { box-shadow: var(--shadow-brand); }
+  .shadow-gold-glow { box-shadow: var(--shadow-gold); }
+
+  /* ---- Type scale ---- */
+  .t-display-xl { font-size: clamp(2.5rem, 4vw + 1rem, 3.75rem); line-height: 1.05; font-weight: 800; letter-spacing: -0.035em; }
+  .t-display { font-size: clamp(2rem, 2.5vw + 1rem, 2.75rem); line-height: 1.08; font-weight: 800; letter-spacing: -0.03em; }
+  .t-h1 { font-size: clamp(1.75rem, 1.5vw + 1rem, 2.25rem); line-height: 1.15; font-weight: 700; letter-spacing: -0.025em; }
+  .t-h2 { font-size: 1.5rem; line-height: 1.2; font-weight: 700; letter-spacing: -0.02em; }
+  .t-h3 { font-size: 1.25rem; line-height: 1.3; font-weight: 600; letter-spacing: -0.015em; }
+  .t-subheading { font-size: 0.9375rem; line-height: 1.4; font-weight: 600; letter-spacing: -0.01em; }
+  .t-body-lg { font-size: 1.0625rem; line-height: 1.6; }
+  .t-body { font-size: 0.9375rem; line-height: 1.6; }
+  .t-caption { font-size: 0.8125rem; line-height: 1.45; }
+  .t-overline { font-size: 0.6875rem; line-height: 1.2; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+
+  /* ---- Financial figures: tabular, right-friendly ---- */
+  .t-num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "cv11" 1;
+    letter-spacing: -0.01em;
+  }
+  .t-num-pos { color: var(--status-success-fg); font-variant-numeric: tabular-nums; }
+  .t-num-neg { color: var(--status-debit-fg); font-variant-numeric: tabular-nums; }
+
+  /* ---- Card primitives (premium elevation) ---- */
+  .card-premium {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-base);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--dur-base) var(--ease-standard),
+                transform var(--dur-base) var(--ease-standard),
+                border-color var(--dur-base) var(--ease-standard);
+  }
+  .card-premium-hover:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+    border-color: var(--border-strong);
+  }
+
+  /* ---- Subtle divider with brand tint ---- */
+  .divider-brand {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--brand-primary) 35%, transparent), transparent);
+  }
+
+  /* ---- Marquee (horizontal scrolling trust badges) ----
+     Two identical tracks sit side-by-side; the wrapper animates left by 50%
+     so when the first track exits the viewport the second is exactly in
+     place, giving a seamless infinite scroll. */
+  .marquee-mask {
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+            mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  }
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    animation: marquee-scroll var(--marquee-duration, 40s) linear infinite;
+    will-change: transform;
+  }
+  .marquee-host:hover .marquee-track {
+    animation-play-state: paused;
+  }
+  @keyframes marquee-scroll {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(-50%, 0, 0); }
+  }
+
+  /* ---- Animated aurora glow used in the hero background ---- */
+  .aurora-glow {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(80px);
+    opacity: 0.5;
+    animation: aurora-float 18s ease-in-out infinite alternate;
+    will-change: transform, opacity;
+  }
+  @keyframes aurora-float {
+    0%   { transform: translate3d(0, 0, 0)        scale(1);    opacity: 0.45; }
+    50%  { transform: translate3d(40px, -30px, 0) scale(1.15); opacity: 0.65; }
+    100% { transform: translate3d(-30px, 20px, 0) scale(0.95); opacity: 0.4; }
+  }
+
+  /* ---- Subtle floating animation for hero visual / cards ---- */
+  .float-y { animation: float-y 6s ease-in-out infinite; }
+  @keyframes float-y {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-8px); }
+  }
+
+  /* ---- Gradient text shimmer for hero accent words ---- */
+  .text-shimmer {
+    background: linear-gradient(90deg,
+      var(--gradient-blue) 0%,
+      var(--gradient-violet) 35%,
+      var(--gradient-gold) 70%,
+      var(--gradient-blue) 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+            background-clip: text;
+    color: transparent;
+    animation: shimmer-pan 6s linear infinite;
+  }
+  @keyframes shimmer-pan {
+    to { background-position: -200% 0; }
+  }
+
+  /* ---- Numbered step connector line for the How-It-Works section ---- */
+  .step-connector::before {
+    content: "";
+    position: absolute;
+    top: 28px;
+    left: calc(50% + 28px);
+    right: calc(-50% + 28px);
+    height: 2px;
+    background: linear-gradient(90deg,
+      color-mix(in oklch, var(--brand-primary) 35%, transparent),
+      color-mix(in oklch, var(--brand-violet) 25%, transparent));
+    z-index: 0;
+  }
+  @media (max-width: 768px) {
+    .step-connector::before { display: none; }
+  }
+
+  /* ---- Reduced motion ---- */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* =====================================================================
+   MEMBER PORTAL — Print / Statement Mode
+   ===================================================================== */
+@media print {
+  .portal-no-print { display: none !important; }
+  .portal-print-area { display: block !important; }
+  body { background: #ffffff !important; }
+  .portal-statement { color: #111 !important; padding: 0 !important; }
+  .portal-statement table { width: 100% !important; border-collapse: collapse !important; }
+  .portal-statement th, .portal-statement td {
+    border: 1px solid #ddd !important; padding: 6px 8px !important;
+    color: #111 !important; background: #fff !important;
+  }
+  .portal-statement th { background: #f5f5f5 !important; }
+}
+.portal-print-area { display: none; }
+
+/* =====================================================================
+   LEDGER STATEMENT — Print Mode (Member Ledger + Account Ledger)
+   ===================================================================== */
+.ledger-print-area { display: none; }
+@media print {
+  .ledger-no-print { display: none !important; }
+  body * { visibility: hidden; }
+  .ledger-print-area, .ledger-print-area * { visibility: visible; }
+  .ledger-print-area {
+    position: absolute; left: 0; top: 0; width: 100%; display: block !important;
+  }
+  body { background: #ffffff !important; }
+  .ledger-statement { color: #111 !important; }
+  .ledger-statement table { width: 100% !important; border-collapse: collapse !important; }
+  .ledger-statement th, .ledger-statement td {
+    border: 1px solid #ddd !important; padding: 6px 8px !important;
+    color: #111 !important; background: #fff !important;
+  }
+  .ledger-statement th { background: #f5f5f5 !important; }
+  @page { margin: 12mm; }
+}
+
+/* =====================================================================
+   ADMIN MONEY RECEIPT — Print Mode
+   ===================================================================== */
+@media print {
+  body * { visibility: hidden; }
+  .receipt-print-area, .receipt-print-area * { visibility: visible; }
+  .receipt-print-area {
+    position: absolute; left: 0; top: 0; width: 100%; display: block !important;
+  }
+  .receipt-no-print { display: none !important; }
+  body { background: #ffffff !important; }
+  .money-receipt {
+    color: #111 !important; box-shadow: none !important;
+    border: none !important; border-radius: 0 !important;
+  }
+  .money-receipt table { width: 100% !important; border-collapse: collapse !important; }
+  .money-receipt th, .money-receipt td {
+    border: 1px solid #ddd !important; padding: 6px 8px !important;
+    color: #111 !important; background: #fff !important;
+  }
+  .money-receipt th { background: #f5f5f5 !important; }
+  .money-receipt, .money-receipt .signature-row { break-inside: avoid; }
+  @page { margin: 12mm; }
+}
+
+/* =====================================================================
+   LEGACY-COLOR COMPATIBILITY SHIM
+   ---------------------------------------------------------------------
+   ~70 pre-redesign pages still use shadcn-era hardcoded palettes
+   (slate-*, indigo-*, emerald-*, red-*, etc.). Rather than hand-edit
+   118 files, these legacy utilities are retargeted onto the Somiti
+   semantic tokens so every page inherits the cohesive premium look.
+   Safe because these are scoped class names, not token names.
+   ===================================================================== */
+
+/* ---- Backgrounds: neutral greys → surface/subtle/inset depth ---- */
+.bg-white { background-color: var(--bg-surface) !important; }
+.bg-slate-50, .bg-slate-100 { background-color: var(--bg-subtle) !important; }
+.bg-slate-200 { background-color: color-mix(in oklch, var(--bg-subtle) 70%, var(--text-muted) 8%) !important; }
+.bg-gray-50, .bg-gray-100, .bg-zinc-50, .bg-zinc-100, .bg-neutral-50, .bg-neutral-100 { background-color: var(--bg-subtle) !important; }
+
+/* Translucent whites used for glass cards → surface with alpha */
+.bg-white\/50, .bg-white\/60, .bg-white\/70, .bg-white\/80, .bg-white\/90 {
+  background-color: color-mix(in oklch, var(--bg-surface) 70%, transparent) !important;
+}
+.dark\:bg-slate-900, .dark\:bg-slate-950 { background-color: var(--bg-surface) !important; }
+.dark\:bg-slate-900\/40, .dark\:bg-slate-900\/50, .dark\:bg-slate-900\/60, .dark\:bg-slate-800 {
+  background-color: var(--bg-subtle) !important;
+}
+.dark\:bg-slate-900\/30, .dark\:bg-slate-800\/30, .dark\:bg-slate-800\/40, .dark\:bg-slate-800\/50, .dark\:bg-slate-800\/60 {
+  background-color: color-mix(in oklch, var(--bg-subtle) 60%, transparent) !important;
+}
+
+/* ---- Text: neutral greys → ink scale ---- */
+.text-slate-900, .text-slate-800, .text-gray-900, .text-gray-800, .text-zinc-900, .text-neutral-900 { color: var(--text-primary) !important; }
+.text-slate-700, .text-gray-700, .text-zinc-700, .text-neutral-700 { color: var(--text-secondary) !important; }
+.text-slate-600, .text-slate-500, .text-gray-600, .text-gray-500, .text-zinc-600, .text-neutral-500 { color: var(--text-muted) !important; }
+.text-slate-400, .text-slate-300, .text-gray-400, .text-zinc-400, .text-neutral-400 { color: var(--text-faint) !important; }
+.dark\:text-white, .dark\:text-slate-50 { color: var(--text-primary) !important; }
+.dark\:text-slate-100, .dark\:text-slate-200, .dark\:text-slate-300 { color: var(--text-secondary) !important; }
+.dark\:text-slate-400 { color: var(--text-muted) !important; }
+.dark\:text-slate-500 { color: var(--text-faint) !important; }
+
+/* ---- Borders: neutral greys → border tokens ---- */
+.border-slate-200, .border-slate-300, .border-gray-200, .border-gray-300, .border-zinc-200, .border-neutral-200 { border-color: var(--border-base) !important; }
+.border-slate-100, .border-gray-100, .border-zinc-100, .border-neutral-100 { border-color: var(--border-base) !important; }
+.dark\:border-slate-800, .dark\:border-slate-700, .dark\:border-slate-800\/50, .dark\:border-slate-800\/60 {
+  border-color: var(--border-base) !important;
+}
+
+/* ---- Brand: indigo/violet/purple → royal blue / violet brand ---- */
+.bg-indigo-600, .bg-indigo-700, .bg-indigo-500, .bg-indigo-50 { background-color: var(--brand-primary) !important; }
+.bg-indigo-50, .bg-violet-50, .bg-purple-50 { background-color: color-mix(in oklch, var(--brand-primary) 14%, transparent) !important; }
+.bg-indigo-100, .bg-violet-100, .bg-purple-100 { background-color: color-mix(in oklch, var(--brand-violet) 18%, transparent) !important; }
+.bg-indigo-500\/20, .bg-indigo-500\/10, .bg-indigo-500\/30 { background-color: color-mix(in oklch, var(--brand-primary) 18%, transparent) !important; }
+.text-indigo-600, .text-indigo-700, .text-indigo-500, .text-violet-600, .text-purple-600 { color: var(--brand-primary) !important; }
+.text-indigo-400, .text-indigo-300 { color: var(--brand-primary) !important; }
+.text-indigo-300 { color: color-mix(in oklch, var(--brand-primary) 75%, var(--text-muted)) !important; }
+.border-indigo-200, .border-indigo-300, .border-violet-200, .border-purple-200 { border-color: color-mix(in oklch, var(--brand-primary) 35%, transparent) !important; }
+.dark\:bg-indigo-950\/40, .dark\:bg-indigo-950\/30, .dark\:bg-violet-950\/40, .dark\:bg-purple-950\/40 {
+  background-color: color-mix(in oklch, var(--brand-primary) 16%, transparent) !important;
+}
+.dark\:bg-indigo-900\/40, .dark\:bg-indigo-900\/50 { background-color: color-mix(in oklch, var(--brand-primary) 22%, transparent) !important; }
+.dark\:text-indigo-300, .dark\:text-indigo-400 { color: color-mix(in oklch, var(--brand-primary) 75%, var(--text-primary)) !important; }
+.hover\:bg-indigo-50:hover, .hover\:bg-indigo-100:hover { background-color: color-mix(in oklch, var(--brand-primary) 14%, transparent) !important; }
+.hover\:bg-indigo-600:hover, .hover\:bg-indigo-700:hover { background-color: var(--brand-primary-hover) !important; }
+.hover\:text-indigo-600:hover, .hover\:text-indigo-700:hover { color: var(--brand-primary) !important; }
+.focus\:ring-indigo-500:focus, .focus-visible\:ring-indigo-500:focus-visible {
+  --tw-ring-color: var(--brand-primary) !important;
+}
+
+/* legacy gradient buttons / hero gradients → brand gradient */
+.bg-gradient-to-br.bg-indigo-600, .from-indigo-600 { background-image: linear-gradient(135deg, var(--gradient-blue), var(--gradient-violet)) !important; }
+
+/* ---- Semantic accents: success/debit/warn/info ---- */
+/* greens → success */
+.bg-emerald-50, .bg-green-50, .bg-green-100 { background-color: color-mix(in oklch, var(--status-success) 14%, transparent) !important; }
+.bg-emerald-100, .bg-green-200 { background-color: color-mix(in oklch, var(--status-success) 22%, transparent) !important; }
+.bg-emerald-500, .bg-green-500, .bg-green-600 { background-color: var(--status-success) !important; }
+.text-emerald-600, .text-emerald-700, .text-emerald-500, .text-green-600, .text-green-700 { color: var(--status-success-fg) !important; }
+.text-emerald-400, .text-emerald-300, .text-green-400 { color: var(--status-success) !important; }
+.border-emerald-200, .border-emerald-300, .border-green-200, .border-green-300 { border-color: color-mix(in oklch, var(--status-success) 38%, transparent) !important; }
+.dark\:bg-emerald-950\/40, .dark\:bg-green-950\/40, .dark\:bg-emerald-900\/40 { background-color: color-mix(in oklch, var(--status-success) 16%, transparent) !important; }
+.dark\:text-emerald-300, .dark\:text-emerald-400, .dark\:text-green-300, .dark\:text-green-400 { color: var(--status-success) !important; }
+
+/* reds/rose → debit */
+.bg-red-50, .bg-rose-50 { background-color: color-mix(in oklch, var(--status-debit) 14%, transparent) !important; }
+.bg-red-100, .bg-rose-100 { background-color: color-mix(in oklch, var(--status-debit) 22%, transparent) !important; }
+.bg-red-500, .bg-red-600, .bg-rose-500, .bg-rose-600 { background-color: var(--status-debit) !important; }
+.text-red-600, .text-red-700, .text-red-500, .text-rose-600, .text-rose-700 { color: var(--status-debit-fg) !important; }
+.text-red-400, .text-rose-400 { color: var(--status-debit) !important; }
+.border-red-200, .border-red-300, .border-rose-200, .border-rose-300 { border-color: color-mix(in oklch, var(--status-debit) 38%, transparent) !important; }
+.dark\:bg-red-950\/40, .dark\:bg-rose-950\/40, .dark\:bg-red-900\/30, .dark\:bg-red-900\/40 { background-color: color-mix(in oklch, var(--status-debit) 16%, transparent) !important; }
+.dark\:text-red-300, .dark\:text-red-400, .dark\:text-rose-300, .dark\:text-rose-400 { color: var(--status-debit) !important; }
+
+/* amber/yellow/orange → warning/gold */
+.bg-amber-50, .bg-yellow-50, .bg-orange-50 { background-color: color-mix(in oklch, var(--status-warning) 14%, transparent) !important; }
+.bg-amber-100, .bg-yellow-100, .bg-orange-100 { background-color: color-mix(in oklch, var(--status-warning) 22%, transparent) !important; }
+.bg-amber-500, .bg-yellow-500, .bg-orange-500 { background-color: var(--status-warning) !important; }
+.text-amber-600, .text-amber-700, .text-yellow-600, .text-orange-600 { color: var(--status-warning-fg) !important; }
+.text-amber-400, .text-yellow-400 { color: var(--status-warning) !important; }
+.border-amber-200, .border-yellow-200, .border-orange-200 { border-color: color-mix(in oklch, var(--status-warning) 38%, transparent) !important; }
+.dark\:bg-amber-950\/40, .dark\:bg-yellow-950\/40 { background-color: color-mix(in oklch, var(--status-warning) 16%, transparent) !important; }
+.dark\:text-amber-300, .dark\:text-amber-400, .dark\:text-yellow-300, .dark\:text-yellow-400 { color: var(--status-warning) !important; }
+
+/* sky/blue → info */
+.bg-sky-50, .bg-blue-50, .bg-cyan-50 { background-color: color-mix(in oklch, var(--status-info) 14%, transparent) !important; }
+.bg-sky-100, .bg-blue-100, .bg-cyan-100 { background-color: color-mix(in oklch, var(--status-info) 22%, transparent) !important; }
+.text-sky-600, .text-sky-700, .text-blue-600, .text-blue-700, .text-cyan-600 { color: var(--status-info-fg) !important; }
+.text-sky-400, .text-blue-400 { color: var(--status-info) !important; }
+.border-sky-200, .border-blue-200 { border-color: color-mix(in oklch, var(--status-info) 38%, transparent) !important; }
+.dark\:bg-sky-950\/40, .dark\:bg-blue-950\/40 { background-color: color-mix(in oklch, var(--status-info) 16%, transparent) !important; }
+.dark\:text-sky-300, .dark\:text-sky-400, .dark\:text-blue-300, .dark\:text-blue-400 { color: var(--status-info) !important; }
+
+/* pink/rose (gender avatars, soft accents) → violet brand tint */
+.bg-pink-50, .bg-pink-100 { background-color: color-mix(in oklch, var(--brand-violet) 16%, transparent) !important; }
+.text-pink-600, .text-pink-700 { color: var(--brand-violet) !important; }
+
+/* ---- Rings & focus ---- */
+.ring-indigo-500, .ring-indigo-400 { --tw-ring-color: var(--brand-primary) !important; }
+.ring-slate-200, .ring-slate-300 { --tw-ring-color: var(--border-base) !important; }
+
+/* ---- Ring offsets used on avatars ---- */
+.dark\:ring-slate-950, .dark\:ring-slate-900 { --tw-ring-color: var(--bg-surface) !important; }
+.ring-white { --tw-ring-color: var(--glass-border) !important; }
+
+/* ---- Legacy shadows elevated to premium depth ---- */
+.shadow-sm { box-shadow: var(--shadow-sm) !important; }
+.shadow-md { box-shadow: var(--shadow-md) !important; }
+.shadow-lg { box-shadow: var(--shadow-lg) !important; }
+.shadow-xl { box-shadow: var(--shadow-xl) !important; }
+.shadow-2xl { box-shadow: var(--shadow-xl) !important; }
+

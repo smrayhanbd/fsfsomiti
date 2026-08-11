@@ -1,0 +1,92 @@
+Folder PATH listing
+Volume serial number is 1881-801C
+C:.
+|   accounting.ts
+|   auth.ts
+|   cloudinary.ts
+|   crypto.ts
+|   dueCalculator.ts
+|   email.ts
+|   financialStatements.ts
+|   format.ts
+|   loanSchedule.ts
+|   nextRedirect.ts
+|   organization.ts
+|   permissions.ts
+|   prisma.ts
+|   serialize.ts
+|   sms.ts
+|   specialWishes.ts
+|   templates.ts
+|   tree.txt
+|   upload.ts
+|   useMounted.ts
+|   utils.ts
+|   
++---distribution
+|       allocate.ts
+|       assert.ts
+|       posting.ts
+|       snapshot.ts
+|       types.ts
+|       
++---mail
+|       provider-metadata.ts
+|       providers.ts
+|       
++---pdf
+|       buildReceiptPayload.ts
+|       moneyReceiptPdf.ts
+|       receipt-payload.ts
+|       
++---permissions
+|       api.ts
+|       client.tsx
+|       permission-registry.ts
+|       resolver.ts
+|       
++---portfolio
+|       accounting.ts
+|       ids.ts
+|       posting.ts
+|       types.ts
+|       validation.ts
+|       
++---sms
+|       provider-metadata.ts
+|       providers.ts
+|       
++---tasks
+|       dispatcher.ts
+|       notify.ts
+|       spawn.ts
+|       validation.ts
+|       
++---transactions
+|       bankAccounts.ts
+|       posting.ts
+|       rules.ts
+|       types.ts
+|       validation.ts
+|       voucher.ts
+|       
+\---trustScore
+    |   assembler.ts
+    |   badges.ts
+    |   config.ts
+    |   context.ts
+    |   index.ts
+    |   notifications.ts
+    |   recalculate.ts
+    |   suggestions.ts
+    |   types.ts
+    |   view.ts
+    |   weights.ts
+    |   
+    \---kpis
+            attend.ts
+            deposit.ts
+            fine.ts
+            loan.ts
+            referral.ts
+            

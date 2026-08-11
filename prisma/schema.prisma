@@ -1,0 +1,3756 @@
+// This is the database schema. It defines how our data is structured.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Used for migrations and interactive transactions ($transaction callbacks).
+  // Routed automatically by Prisma; keeps the 43 interactive-tx call sites
+  // working while the pooled `url` runs in transaction mode for serverless.
+  directUrl = env("DIRECT_URL")
+}
+
+// Organization Model (For Multi-Tenant SaaS)
+model Organization {
+  id              String  @id @default("singleton") // singleton — one row holds our org info
+  // ── Identity ──────────────────────────────────────────────────────────────
+  name            String
+  logo            String? // Cloudinary URL (uploaded via settings page)
+  tagline         String?
+  description     String? @db.Text
+  // ── Contact + Address ─────────────────────────────────────────────────────
+  email           String?
+  phone           String?
+  website         String?
+  addressLine     String?
+  city            String?
+  district        String?
+  postalCode      String?
+  // ── Legal / Registration ──────────────────────────────────────────────────
+  regNo           String? // society/cooperative registration no.
+  licenseNo       String?
+  tradeLicenseNo  String?
+  establishedYear String?
+  // ── Social (rendered as small links on the receipt footer) ────────────────
+  facebook        String?
+  whatsapp        String?
+  youtube         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  members   Member[]
+}
+
+// Enums
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum MaritalStatus {
+  UNMARRIED
+  MARRIED
+  DIVORCED
+  WIDOWED
+}
+
+enum BloodGroup {
+  A_POSITIVE
+  A_NEGATIVE
+  B_POSITIVE
+  B_NEGATIVE
+  AB_POSITIVE
+  AB_NEGATIVE
+  O_POSITIVE
+  O_NEGATIVE
+}
+
+enum WishType {
+  BIRTHDAY
+  MARRIAGE
+  JOINING
+  FESTIVAL
+}
+
+enum WishChannel {
+  SMS
+  EMAIL
+  BOTH
+}
+
+enum MemberStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  DECEASED
+  CLOSED
+  REJECTED
+}
+
+// ====================== TRUST SCORE SYSTEM (FRS v2.0) ======================
+
+// Achievement badge award lifecycle for the per-member badge row
+enum AchievementBadgeStatus {
+  ACTIVE
+  LOST
+}
+
+// Fine lifecycle (maps to the FINE KPI)
+enum FineStatus {
+  ISSUED
+  PAID
+  WAIVED
+}
+
+// Meeting attendance value (maps to the ATTEND KPI). EXCUSED counts as attended
+// when the admin enables "approved absences count as attended" (default on).
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+}
+
+// Member Model (Society Members)
+model Member {
+  id String @id @default(uuid())
+
+  // Link to Organization
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  // Membership Information
+  memberNo       String       @unique
+  membershipDate DateTime     @default(now())
+  joiningDate    DateTime?
+  memberType     String?
+  status         MemberStatus @default(PENDING)
+
+  // Personal Information
+  firstName String
+  lastName  String
+  fullName  String
+
+  gender        Gender?
+  dateOfBirth   DateTime?
+  maritalStatus MaritalStatus?
+  marriageDate  DateTime?
+
+  fatherName String?
+  motherName String?
+  spouseName String?
+
+  religion    String?
+  nationality String?     @default("Bangladeshi")
+  bloodGroup  BloodGroup?
+
+  occupation    String?
+  profession    String?
+  monthlyIncome Decimal? @db.Decimal(12, 2)
+
+  // Contact
+  phone                String
+  emergencyPhone       String?
+  emergencyContactName String?
+  // Email is NOT unique — one person may hold multiple memberships.
+  email                String?
+
+  // Identity
+  nidNumber          String? @unique
+  passportNumber     String? @unique
+  birthCertificateNo String? @unique
+
+  // Bank Information
+  accountName   String?
+  accountNumber String?
+  bankName      String?
+  branch        String?
+  routingNumber String?
+
+  // Photo
+  photoUrl String?
+
+  // Signature - uploaded at registration, embedded on the Membership
+  // Application Form PDF. Required for member registration (validated in
+  // MemberForm.tsx and MemberProfileEditForm.tsx).
+  signatureUrl String?
+
+  kycVerified Boolean @default(false)
+
+  // Membership
+  remarks String? @db.Text
+
+  // ── Trust Score (FRS v2.0) ──────────────────────────────────────────────
+  // All fields are auto-managed by the scoring engine; never edited manually.
+  trustScore         Int       @default(60) // 0–100
+  badgeLevel         String    @default("Silver Member")
+  riskLevel          String    @default("Average")
+  scoreLastUpdated   DateTime?
+  // Referral: the member who referred this one. Self-referencing relation.
+  referredByMemberId String?
+  referredBy         Member?   @relation("MemberReferral", fields: [referredByMemberId], references: [id], onDelete: SetNull)
+  referrals          Member[]  @relation("MemberReferral")
+
+  // Relationships
+  addresses     MemberAddress[]
+  nominees      MemberNominee[]
+  documents     MemberDocument[]
+  accounts      MemberAccount[]
+  savings       Savings[]
+  ledgerEntries LedgerEntry[]
+
+  // Loan relationships
+  loans          Loan[]
+  loanRepayments LoanRepayment[]
+  loanGuarantors LoanGuarantor[] @relation("LoanGuarantorMember")
+
+  // Special wishes
+  wishLogs SpecialWishLog[]
+
+  // Accounting
+  journalEntries JournalEntry[]
+
+  // Transactions Module
+  transactions Transaction[]
+
+  // Payment gateway integrations (bKash / Nagad) — back-relation.
+  paymentIntents PaymentIntent[]
+
+  // Trust Score relationships (FRS v2.0)
+  scoreHistory       TrustScoreHistory[]
+  achievementBadges  AchievementBadge[]
+  fines              Fine[]
+  meetingAttendances MeetingAttendance[]
+
+  // Task Management Module — relations
+  taskAssignees        TaskAssignee[]       @relation("TaskAssigneeMember")
+  relatedTasks         Task[]               @relation("TaskRelatedMember")
+  taskComments         TaskComment[]        @relation("TaskCommentAuthorMember")
+  taskTimeLogs         TaskTimeLog[]        @relation("TaskTimeLogMember")
+  taskAuditLogs        TaskAuditLog[]       @relation("TaskAuditActorMember")
+  committeeMemberships CommitteeMember[]    @relation("CommitteeMemberMember")
+  memberNotifications  MemberNotification[]
+
+  // Investment & Project module — optional team links
+  projectsManaged   Project[] @relation("ProjectManager")
+  projectsSponsored Project[] @relation("ProjectSponsor")
+
+  // Income Distribution Module — shares credited to this member
+  distributionShares DistributionShare[]
+
+  // Election Management Module — relations
+  electionEligibility            ElectionEligibility[]           @relation("ElectionEligibilityMember")
+  electionEligibilityOverrides   ElectionEligibilityOverride[]   @relation("ElectionEligibilityOverrideMember")
+  electionNominations            ElectionNomination[]            @relation("ElectionNominationMember")
+  electionCandidates             ElectionCandidate[]             @relation("ElectionCandidateMember")
+  electionParticipation          ElectionParticipation[]         @relation("ElectionParticipationMember")
+  electionNotificationRecipients ElectionNotificationRecipient[] @relation("ElectionNotificationRecipientMember")
+  electionCommitteeMemberships   ElectionCommitteeMember[]       @relation("ElectionCommitteeMemberMember")
+  committeeVacanciesVacated      ElectionCommitteeVacancy[]      @relation("CommitteeVacancyVacatedBy")
+  committeeVacanciesFilled       ElectionCommitteeVacancy[]      @relation("CommitteeVacancyFilledBy")
+  notificationDismissals         MemberNotificationDismissal[]   @relation("MemberNotificationDismissalMember")
+
+  // Audit
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  // deletedAt: when the member was soft-deleted. The deleteMember server action
+  // sets deletedAt = now() and status = "CLOSED" instead of hard-deleting the
+  // row (D6) so historical ledger entries / loan audit trails remain
+  // referentially intact. Queries that should hide deleted members add
+  // `WHERE deletedAt IS NULL`. NEVER use prisma.member.delete() in the app —
+  // always go through deleteMember so the soft-delete + status flip happens
+  // atomically inside a $transaction.
+  deletedAt DateTime?
+
+  // ── Election ballot back-relation (B24) ────────────────────────────────────
+  // A member may have at most one ballot per election (uniqueness enforced on
+  // ElectionBallot via @@unique([electionId, memberId])).
+  electionBallots ElectionBallot[] @relation("ElectionBallotMember")
+
+  // ── Term-deposit back-relation (Roadmap item 22) ──────────────────────────
+  memberDeposits MemberDeposit[]
+
+  createdBy       String?
+  updatedBy       String?
+  requests        MemberRequest[]
+  profileRequests ProfileUpdateRequest[]
+
+  // Full-text search — maintained by the member_search_vector_trigger (see
+  // prisma/migrations/20260811000011_member_fts). Prisma can't represent the
+  // tsvector type natively, so it's typed as Unsupported: queries that read /
+  // filter by this column must go through $queryRaw with `WHERE "searchVector"
+  // @@ plainto_tsquery('english', $1)`.
+  searchVector Unsupported("tsvector")?
+
+  @@index([memberNo])
+  @@index([phone])
+  @@index([email])
+  @@index([status])
+  @@index([joiningDate])
+  @@index([trustScore])
+}
+
+model MemberAddress {
+  id            String   @id @default(uuid())
+  memberId      String
+  member        Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  addressType   String // CURRENT, PERMANENT
+  village       String?
+  postOffice    String?
+  policeStation String?
+  district      String?
+  division      String?
+  postalCode    String?
+  country       String?  @default("Bangladesh")
+  createdAt     DateTime @default(now())
+
+  @@index([memberId])
+}
+
+model MemberNominee {
+  id              String    @id @default(uuid())
+  memberId        String
+  member          Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  name            String
+  relation        String
+  phone           String?
+  email           String?
+  dateOfBirth     DateTime?
+  nidNumber       String?
+  idType          String? // <-- ADD THIS LINE
+  idDocumentUrl   String? // <-- ADD THIS LINE
+  sharePercentage Decimal   @db.Decimal(5, 2)
+  photoUrl        String?
+  // Nominee signature - required if the nominee is an adult (18+).
+  signatureUrl    String?
+  documentUrl     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([memberId])
+}
+
+model MemberDocument {
+  id           String    @id @default(uuid())
+  memberId     String
+  member       Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  documentType String
+  name         String?
+  fileName     String?
+  fileUrl      String
+  issueDate    DateTime?
+  expiryDate   DateTime?
+  uploadedAt   DateTime  @default(now())
+
+  @@index([memberId])
+}
+
+model MemberAccount {
+  id            String    @id @default(uuid())
+  memberId      String
+  member        Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  username      String    @unique
+  email         String?   @unique
+  passwordHash  String
+  emailVerified Boolean   @default(false)
+  lastLogin     DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([memberId])
+}
+
+// Placeholder models so Prisma validation passes
+model Savings {
+  id        String   @id @default(uuid())
+  receiptNo String?  @unique
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  amount    Decimal  @db.Decimal(12, 2)
+  type      String // MONTHLY, DAILY, DONATION, FINE
+  method    String // CASH, BKASH, BANK
+  date      DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  // ── Audit trail (D5) — promote from placeholder ──────────────────────────────
+  // updatedBy: admin userId who last modified the row (NULL for system-generated).
+  updatedBy           String?
+  // updatedAt: auto-stamped on every write; lets clients detect stale reads.
+  updatedAt           DateTime @updatedAt
+  // transactionMirrorId: explicit unique FK pointing to the originating
+  // Transaction. Stays NULL on Savings rows created by non-transaction flows
+  // (e.g. income-distribution profit credits). Backward-compatible with the
+  // existing Transaction.savingsMirrorId relation — this column is an
+  // additional denormalized lookup so audit queries can resolve a Savings →
+  // Transaction join without going through the implicit back-relation.
+  transactionMirrorId String?  @unique
+  // journalLineId: optional link to the GL line that posted this Savings row,
+  // for the trial-balance → member-ledger reconciliation drill-down.
+  journalLineId       String?
+
+  // Transactions Module — the member-facing mirror of an approved Transaction.
+  transactionMirror Transaction?
+
+  // Income Distribution Module — the PROFIT credit row created for this share.
+  distributionShare DistributionShare?
+
+  @@index([memberId])
+}
+
+model LedgerEntry {
+  id        String   @id @default(uuid())
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id])
+  debit     Decimal? @default(0) @db.Decimal(12, 2)
+  credit    Decimal? @default(0) @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+}
+
+// User Model (Admins & Staff)
+// role values: SUPER_ADMIN | ADMIN | MEMBER.
+//   - SUPER_ADMIN: full override; can edit locked attendance/minutes any time.
+//   - ADMIN: dashboard staff. Needs an explicit UserPermission row to submit
+//            attendance / upload minutes; submission locks the record.
+model User {
+  id          String           @id @default(uuid())
+  email       String           @unique
+  password    String
+  role        String           @default("ADMIN") // SUPER_ADMIN, ADMIN, MEMBER
+  name        String?
+  phone       String?
+  isActive    Boolean          @default(true)
+  lastLogin   DateTime?
+  createdBy   String?
+  permissions UserPermission[]
+
+  // ── MFA / 2FA (Roadmap item 13) ────────────────────────────────────────────
+  // twoFactorSecret: TOTP shared secret (base32) stored AES-256-GCM encrypted
+  //   via lib/crypto.ts when the user enables 2FA. NULL when 2FA is off.
+  // twoFactorEnabled: convenience flag for fast lookups ("show MFA enroll CTA
+  //   for users where twoFactorEnabled = false"). True only after the user
+  //   verifies a 6-digit TOTP code with the stored secret.
+  // twoFactorBackupCodes: array of bcrypt-hashed one-time codes the user can
+  //   fall back on if they lose their TOTP device. Each consumed code is
+  //   removed from the array by the verify action.
+  // lastMfaAt: timestamp of the most recent successful MFA challenge — used by
+  //   the audit dashboard to surface stale enrollments.
+  // passwordChangedAt: stamp updated whenever the password field is rewritten;
+  //   sessions issued before this timestamp are invalidated by next-auth's
+  //   session callback. Marked @updatedAt so the value tracks every password
+  //   change (the app sets it explicitly when only the password is touched).
+  twoFactorSecret      String?
+  twoFactorEnabled     Boolean   @default(false)
+  twoFactorBackupCodes String[]
+  lastMfaAt            DateTime?
+  passwordChangedAt    DateTime? @updatedAt
+
+  // ── MemberRequest audit back-relations (D15) ────────────────────────────────
+  // All SetNull so deleting an admin doesn't wipe the request audit trail.
+  reviewedMemberRequests MemberRequest[] @relation("MemberRequestReviewedBy")
+  createdMemberRequests  MemberRequest[] @relation("MemberRequestCreatedBy")
+
+  // ── Financial-year close back-relation (Roadmap item 24) ───────────────────
+  closedFinancialYears FinancialYear[] @relation("FinancialYearClosedBy")
+
+  // RBAC Module — new granular role/permission system
+  roles           UserRole[]
+  permOverrides   UserPermissionOverride[]
+  rbacAuditActor  AuditLog[]               @relation("AuditActor")
+  rbacAuditTarget AuditLog[]               @relation("AuditTargetUser")
+
+  // Task Management Module — relations
+  taskAssignees         TaskAssignee[]        @relation("TaskAssigneeUser")
+  taskChecklistItems    TaskChecklistItem[]   @relation("TaskChecklistCompleter")
+  taskComments          TaskComment[]         @relation("TaskCommentAuthorUser")
+  taskAttachments       TaskAttachment[]      @relation("TaskAttachmentUploader")
+  taskTimeLogs          TaskTimeLog[]         @relation("TaskTimeLogUser")
+  taskAuditLogs         TaskAuditLog[]        @relation("TaskAuditActorUser")
+  tasksCreated          Task[]                @relation("TaskCreator")
+  tasksUpdated          Task[]                @relation("TaskUpdater")
+  tasksApproved         Task[]                @relation("TaskApprover")
+  taskApprovalRequests  TaskApprovalRequest[] @relation("TaskApprovalRequester")
+  taskApprovalDecisions TaskApprovalRequest[] @relation("TaskApprovalDecider")
+  committeeChairs       Committee[]           @relation("CommitteeChair")
+  committeeMemberships  CommitteeMember[]     @relation("CommitteeMemberUser")
+
+  // Election Management Module — relations (audit/observer/approval back-links)
+  electionsCreated             Election[]                    @relation("ElectionCreatedBy")
+  nominationsReviewed          ElectionNomination[]          @relation("NominationReviewedBy")
+  candidatesApproved           ElectionCandidate[]           @relation("CandidateApprovedBy")
+  candidatesDisqualified       ElectionCandidate[]           @relation("CandidateDisqualifiedBy")
+  electionObserversAssigned    ElectionObserverAssignment[]  @relation("ElectionObserverAssignedBy")
+  electionObserverAssignments  ElectionObserverAssignment[]  @relation("ElectionObserverUser")
+  ballotKeyActivations         BallotKeyRotation[]           @relation("BallotKeyActivatedBy")
+  recountRequests              RecountRequest[]              @relation("RecountRequestedBy")
+  electionSettingsCaptured     ElectionSettingsSnapshot[]    @relation("ElectionSettingsCapturedBy")
+  electionEligibilityOverrides ElectionEligibilityOverride[] @relation("ElectionEligibilityOverrideBy")
+
+  // Audit
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([isActive])
+  @@index([role])
+}
+
+// Enums for Accounting
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+enum AccountNature {
+  DEBIT
+  CREDIT
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// Voucher / journal-entry type for double-entry bookkeeping
+enum VoucherType {
+  JOURNAL // General journal entry
+  RECEIPT // Money received (cash/bank debit)
+  PAYMENT // Money paid out (cash/bank credit)
+  CONTRA // Between two asset accounts (e.g. bank <-> cash)
+}
+
+// Lifecycle of a journal entry
+enum JournalStatus {
+  DRAFT // Editable, not yet affecting balances
+  POSTED // Posted to the ledger; balances updated
+}
+
+// ====================== INCOME DISTRIBUTION MODULE ======================
+// Distributes income (investment income, project profit, bank interest, etc.)
+// to members pro-rata by their fund share at a snapshot date. Each posting
+// writes a balanced GL voucher AND per-member Savings mirror rows so member
+// balances rise immediately while the aggregate liability stays in sync.
+
+// Where the distributed income came from.
+enum DistributionSourceType {
+  INVESTMENT // launched from an Investment — distributes its recorded income
+  PROJECT // launched from a Project — distributes net profit (revenue − expense)
+  GENERAL // bank interest / other income not tied to a specific entity
+}
+
+// How each member's share is computed.
+enum DistributionBasis {
+  PRO_RATA // proportional to fund at snapshotDate (cooperative standard)
+  EQUAL // equal split among eligible members
+  MANUAL // admin-entered weights per member
+}
+
+// Lifecycle of a distribution run.
+enum DistributionStatus {
+  DRAFT // shares computed, voucher not yet posted
+  POSTED // voucher posted; member Savings credited; balances updated
+  REVERSED // reversed by a reversing voucher; mirror rows removed
+}
+
+model Account {
+  id              String    @id @default(uuid())
+  accountCode     String    @unique
+  accountName     String
+  parentAccountId String?
+  parentAccount   Account?  @relation("AccountTree", fields: [parentAccountId], references: [id], onDelete: SetNull)
+  childAccounts   Account[] @relation("AccountTree")
+
+  accountType    AccountType
+  category       String?
+  nature         AccountNature
+  openingBalance Decimal       @default(0) @db.Decimal(12, 2)
+  currentBalance Decimal       @default(0) @db.Decimal(12, 2)
+  currency       String        @default("BDT")
+  description    String?       @db.Text
+
+  isBank       Boolean       @default(false)
+  isCash       Boolean       @default(false)
+  allowPosting Boolean       @default(true)
+  allowJournal Boolean       @default(true)
+  status       AccountStatus @default(ACTIVE)
+
+  // Extension fields for enterprise use
+  taxDeductible     Boolean  @default(false)
+  reconciledBalance Decimal? @db.Decimal(12, 2)
+
+  // Double-entry postings
+  journalLines JournalLine[]
+
+  // Transactions Module — the cash/bank/wallet side of transactions
+  cashTransactions Transaction[]
+
+  // Somiti Settings → Active Bank Accounts (default COA per payment method)
+  bankAccounts BankAccount[]
+
+  // ── Investment & Project module relations ───────────────────────────
+  investmentDebitAccounts     Investment[]          @relation("InvestmentDebitAccount")
+  investmentCreditAccounts    Investment[]          @relation("InvestmentCreditAccount")
+  investmentIncomeJournals    InvestmentIncome[]
+  investmentExitJournals      InvestmentExit[]
+  investmentValuationJournals InvestmentValuation[]
+  projectRevenueAccounts      Project[]             @relation("ProjectRevenueAccount")
+  projectExpenseAccounts      Project[]             @relation("ProjectExpenseAccount")
+  projectWipAccounts          Project[]             @relation("ProjectWipAccount")
+
+  // ── Balance-change history (D8) ───────────────────────────────────────
+  // Append-only audit trail of every balance mutation, written alongside the
+  // journal-entry posting. Used to reconstruct an account ledger without
+  // replaying every JournalLine.
+  balanceHistories AccountBalanceHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Composite index for the chart-of-accounts tree filter: "accounts of type X by status" (D16).
+  @@index([accountType, status])
+}
+
+// Journal Entry = the voucher header (one document, many lines)
+model JournalEntry {
+  id          String        @id @default(uuid())
+  voucherNo   String        @unique // e.g. JV-0001, RV-0001, PV-0001, CV-0001
+  voucherType VoucherType   @default(JOURNAL)
+  entryDate   DateTime      @default(now())
+  narration   String
+  referenceNo String?
+  memberId    String? // optional link to a member (e.g. member payment)
+  member      Member?       @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  status      JournalStatus @default(DRAFT)
+  totalDebit  Decimal       @default(0) @db.Decimal(14, 2)
+  totalCredit Decimal       @default(0) @db.Decimal(14, 2)
+
+  // ── Financial-year tagging (Roadmap item 24) ───────────────────────────
+  // Optional: which financial year this voucher was posted in. NULL on rows
+  // that pre-date financial-year tracking. SetNull on year deletion so the
+  // voucher is not lost.
+  financialYearId String?
+  financialYear   FinancialYear? @relation(fields: [financialYearId], references: [id], onDelete: SetNull)
+
+  lines JournalLine[]
+
+  // Transactions Module — the posting created when a transaction is approved
+  transactions Transaction[]
+
+  // Investment & Project Module — vouchers auto-generated by financial events
+  investmentPurchases  Investment[]
+  investmentIncomes    InvestmentIncome[]
+  investmentExits      InvestmentExit[]
+  investmentValuations InvestmentValuation[]
+  projectExpenses      ProjectExpense[]
+  projectRevenues      ProjectRevenue[]
+
+  // Income Distribution Module — posted distribution & its reversal voucher
+  postedDistributions   IncomeDistribution[] @relation("DistributionPostedJournal")
+  reversedDistributions IncomeDistribution[] @relation("DistributionReversalJournal")
+
+  // ── Loan write-off voucher (B21) ────────────────────────────────────────
+  // When a Loan is written off, this JournalEntry is the balanced GL voucher
+  // that debits the loss account and credits the loan receivable.
+  writeOffLoans Loan[] @relation("LoanWriteOffJournal")
+
+  // ── Balance-change history (D8) ──────────────────────────────────────────
+  // Per-line balance snapshots for the Account Ledger view.
+  accountBalanceHistories AccountBalanceHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Composite index for the journal-entry list filter: "entries on date X by status by voucher type" (D16).
+  @@index([entryDate, status, voucherType])
+}
+
+// Journal Line = a single posting (debit OR credit) to one account
+model JournalLine {
+  id             String       @id @default(uuid())
+  journalEntryId String
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  debit  Decimal @default(0) @db.Decimal(14, 2)
+  credit Decimal @default(0) @db.Decimal(14, 2)
+  memo   String?
+
+  createdAt DateTime @default(now())
+}
+
+// ====================== TRANSACTIONS MODULE ======================
+// Unified financial engine with Maker-Checker approval workflow and full
+// double-entry accounting integration. Every approved transaction writes to
+// BOTH the member-facing Savings ledger AND the General Ledger
+// (JournalEntry + JournalLine) atomically, linked by shared ids.
+// Approved transactions are immutable — corrections require a Reversal.
+
+// The 4 top-level transaction categories (spec §3).
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  CHARGE
+  INCOME_DISTRIBUTION
+}
+
+// Detailed sub-types. Member-side and Future-side entries share this enum
+// for forward compatibility (loan disbursement, admission fee, shares, etc.
+// are stubbed TODO(PHASE 2)).
+enum TransactionSubType {
+  // Member deposits
+  SAVINGS_DEPOSIT
+  ADVANCE
+  DUE_PAYMENT
+  // Charges
+  SERVICE_CHARGE
+  BANK_CHARGE
+  ANNUAL_FEE
+  ADMIN_CHARGE
+  FINE_PENALTY
+  OTHER_CHARGE
+  // Generic marker for dynamic charge types created on the Fees & Charge Setup
+  // → Charge Type tab. The human-readable name is stored on Transaction.chargeTypeName.
+  CUSTOM_CHARGE
+  // Income distribution sources
+  PROJECT_PROFIT
+  BANK_INTEREST
+  INVESTMENT_INCOME
+  DIVIDEND
+  OTHER_INCOME
+  // Future (Phase 2 stubs)
+  LOAN_DISBURSEMENT
+  LOAN_INSTALLMENT
+  ADMISSION_FEE
+  MEMBERSHIP_FEE
+  SHARE_PURCHASE
+  SHARE_REFUND
+}
+
+// Which ledger this transaction touches.
+enum TransactionCategory {
+  MEMBER
+  FUTURE
+}
+
+// Payment / collection method (spec §6).
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHEQUE
+  BKASH
+  NAGAD
+  ROCKET
+}
+
+// Approval workflow status (spec §5).
+enum TransactionStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  RETURNED
+  REJECTED
+  REVERSED
+}
+
+// Approval tier resolved at submit time from ApprovalLimit by amount (spec §13).
+enum ApprovalLevel {
+  L1
+  L2
+  L3
+}
+
+model Transaction {
+  id              String              @id @default(uuid())
+  voucherNo       String              @unique // TR-DEP-000001 etc. (atomic via Counter)
+  transactionType TransactionType
+  subType         TransactionSubType
+  // ── Optimistic concurrency (B11) ─────────────────────────────────────────
+  // Bumped on every write so concurrent approvals fail loudly instead of
+  // silently overwriting each other. See `where: { id, version }` pattern.
+  version         Int                 @default(0)
+  // ── Term-deposit link (Roadmap item 22) ──────────────────────────────────
+  // Back-relation: a Transaction may be the principal-deposit leg of a
+  // MemberDeposit. The FK column lives on MemberDeposit.transactionId (1:1),
+  // so Transaction itself has no memberDepositId column — this field is the
+  // implicit Prisma back-reference.
+  memberDeposit   MemberDeposit?      @relation
+  // For dynamic charge types (subType = CUSTOM_CHARGE), the human-readable name
+  // chosen on the Fees & Charge Setup → Charge Type tab, snapshotted at creation.
+  chargeTypeName  String?
+  category        TransactionCategory @default(MEMBER)
+
+  // Member this transaction affects (optional for some charges / distributions).
+  memberId String?
+  member   Member? @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+  // Money & payment
+  amount        Decimal        @db.Decimal(14, 2)
+  paymentMethod PaymentMethod?
+  cashAccountId String? // Cash Drawer / Bank / Mobile Wallet (Account)
+  cashAccount   Account?       @relation(fields: [cashAccountId], references: [id], onDelete: Restrict)
+  referenceNo   String?
+
+  // Structured payload preserving the collection breakdown (deposit, principal,
+  // interest, fine, other, discount) or member-wise income-distribution split.
+  breakdown   Json?
+  attachments Json    @default("[]") // [{type, name, url}]
+  remarks     String? @db.Text
+
+  // ── Status workflow ────────────────────────────────────────────────────
+  status          TransactionStatus @default(DRAFT)
+  approvalLevel   ApprovalLevel?
+  returnReason    String?           @db.Text
+  rejectionReason String?           @db.Text
+
+  // ── Reversal linkage (spec §19/§29) ────────────────────────────────────
+  // reversalOfId: if set, THIS row reverses the referenced transaction.
+  // reversedById: set on the original when a reversal is created against it.
+  // Self-relation: only one side owns the foreign key.
+  reversalOfId   String?      @unique
+  reversalOf     Transaction? @relation("TransactionReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversedById   String?      @unique
+  reversedBy     Transaction? @relation("TransactionReversal")
+  reversalReason String?      @db.Text
+
+  // ── Posting links (filled atomically on approval) ─────────────────────
+  journalEntryId  String?
+  journalEntry    JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  savingsMirrorId String?       @unique
+  savingsMirror   Savings?      @relation(fields: [savingsMirrorId], references: [id], onDelete: Restrict)
+
+  // ── Member-portal request origin ──────────────────────────────────────
+  memberSubmitted Boolean        @default(false)
+  memberRequestId String?
+  memberRequest   MemberRequest? @relation(fields: [memberRequestId], references: [id], onDelete: SetNull)
+
+  // ── Full audit trail (spec §18) ────────────────────────────────────────
+  createdBy        String
+  createdById      String
+  createdAt        DateTime  @default(now())
+  // Effective date of the transaction (when the money moved), separate from the
+  // system createdAt. Lets collectors back-date entries recorded after the fact.
+  transactionDate  DateTime  @default(now())
+  submittedBy      String?
+  submittedById    String?
+  submittedAt      DateTime?
+  approvedBy       String?
+  approvedById     String?
+  approvedAt       DateTime?
+  returnedBy       String?
+  returnedById     String?
+  returnedAt       DateTime?
+  rejectedBy       String?
+  rejectedById     String?
+  rejectedAt       DateTime?
+  reversedByUser   String?
+  reversedByUserId String?
+  reversedAt       DateTime?
+  ipAddress        String?
+  deviceInfo       String?
+
+  // Task Management Module — linked tasks
+  tasks Task[]
+
+  // Payment gateway integrations (bKash / Nagad) — back-relation.
+  paymentIntents PaymentIntent[]
+
+  @@index([status])
+  @@index([transactionType, status])
+  @@index([memberId])
+  @@index([approvedAt])
+  @@index([reversalOfId])
+  @@index([cashAccountId])
+  // Composite index for subType-scoped date-range scans (D16).
+  @@index([subType, transactionDate])
+}
+
+// Approval tier configuration (spec §13). Resolved at submit time by amount.
+// role values: SUPER_ADMIN | ADMIN. ADMIN rows additionally require the named
+// permission key on the UserPermission table.
+model ApprovalLimit {
+  id         String   @id @default(uuid())
+  level      Int // 1, 2, 3
+  label      String // "Branch Manager", "Regional Manager", "Super Admin"
+  role       String // SUPER_ADMIN | ADMIN
+  // When role=ADMIN, this permission key (on UserPermission) is also required.
+  permission String?
+  minAmount  Decimal  @default(0) @db.Decimal(14, 2)
+  maxAmount  Decimal  @db.Decimal(14, 2)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([level, isActive])
+}
+
+// Atomic monotonic sequence counters — fixes the race-prone `count+1` voucher
+// generation. Each id (e.g. "transaction", "TR-DEP") is incremented inside a
+// `prisma.$transaction` with the row locked for update.
+model Counter {
+  id    String @id
+  value Int    @default(0)
+}
+
+model SiteContent {
+  id               String   @id @default("singleton")
+  heroTitle        String   @default("The Modern Way to Manage Your Somiti")
+  heroSubtitle     String   @default("Digitize your cooperative society. Automate collections, track ledgers, and build financial trust with complete transparency.")
+  heroBadge        String?  @db.Text // Small pill above hero title (e.g. "Next-Gen Cooperative Management")
+  heroCtaPrimary   String?  @default("Become a Member")
+  heroCtaSecondary String?  @default("Member Login")
+  aboutTitle       String   @default("About Our Somiti")
+  aboutContent     String   @default("We are a community-driven cooperative society dedicated to empowering our members financially. Founded on principles of trust and mutual support, we provide a secure platform for savings, loans, and investments.")
+  visionTitle      String   @default("Our Vision & Mission")
+  visionContent    String   @default("To build a financially resilient community where every member has access to transparent, secure, and modern financial services, fostering growth and prosperity for all.")
+  // 7 community pillars (Community Growth, Together Fund, Dream House, Member Loans, Business Growth, Investment & Projects, Helping People)
+  whyJoinUs        Json     @default("[]") // Array of {icon, title, description}
+  // Member-portal transparency features (Bank Statements, Meeting Minutes, Withdrawal Requests, SMS/Email alerts, WhatsApp community, Member Voting)
+  howWeRun         Json     @default("[]") // Array of {icon, title, description}
+  // Numbered onboarding steps (Register → Approve → Deposit → Withdraw/Vote → Grow)
+  howItWorks       Json     @default("[]") // Array of {step, title, description}
+  // Top-of-page stat strip (members, savings, projects, etc.)
+  stats            Json     @default("[]") // Array of {value, label, suffix}
+  // Horizontal scrolling security/trust badges (256-bit Encrypted Data, Trusted by N Members, Automated Payouts, A group of trusted peoples, Transparent Ledger, Bank-Grade Security)
+  securityBadges   Json     @default("[]") // Array of {label, icon}
+  transparency     String   @default("100% Transparency in Somiti Management. All transactions are recorded in real-time ledgers. Members have 24/7 access to their balances, and automated receipts ensure accountability for every Taka.")
+  policyContent    String?  @db.Text
+  facilities       Json     @default("[]") // Array of {icon, title, description}
+  management       Json     @default("[]") // Array of {name, role, photoUrl, bio}
+  activities       Json     @default("[]") // Array of {title, date, description}
+  projects         Json     @default("[]") // Array of {title, status, description}
+  updatedAt        DateTime @updatedAt
+}
+
+model PasswordReset {
+  id        String   @id @default(uuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  type      String   @default("SYSTEM") // SYSTEM, SMS_ERROR, MEMBER_REQUEST, PROFILE_REQUEST, LOAN_REQUEST
+  title     String
+  message   String
+  link      String? // admin page to open when this notification is clicked
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Composite index for the "unread, newest-first" admin feed query (D11).
+  @@index([isRead, createdAt(sort: Desc)])
+}
+
+model Festival {
+  id        String   @id @default(uuid())
+  name      String
+  month     Int // 1-12
+  day       Int // 1-31
+  message   String?  @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  wishLogs SpecialWishLog[]
+
+  @@index([month, day])
+  @@index([isActive])
+}
+
+model SpecialWishLog {
+  id         String      @id @default(uuid())
+  type       WishType
+  memberId   String?
+  member     Member?     @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  festivalId String?
+  festival   Festival?   @relation(fields: [festivalId], references: [id], onDelete: SetNull)
+  message    String      @db.Text
+  channel    WishChannel
+  status     String // SENT, FAILED
+  error      String?     @db.Text
+  sentAt     DateTime    @default(now())
+
+  @@index([type])
+  @@index([memberId])
+  @@index([festivalId])
+  @@index([sentAt])
+}
+
+model MemberRequest {
+  id        String   @id @default(uuid())
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  type      String // WITHDRAWAL, CLOSING, DEPOSIT
+  amount    Decimal? @db.Decimal(12, 2)
+  method    String? // CASH | BANK_TRANSFER | CHEQUE | BKASH | NAGAD | ROCKET (DEPOSIT/WITHDRAWAL)
+  reason    String?
+  notes     String?
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt DateTime @default(now())
+
+  // ── Audit trail (D15) ───────────────────────────────────────────────────────
+  // reviewedBy (existing) holds the admin email/name snapshot for legacy rows;
+  // reviewedById is the FK to User so we can join to the live admin account.
+  // SetNull on user deletion so the request audit history survives admin churn.
+  reviewedById   String?
+  reviewedByUser User?   @relation("MemberRequestReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  // createdById: the admin who created the request on a member's behalf (or NULL
+  // for portal-originated requests where only the member is involved).
+  createdById    String?
+  createdByUser  User?   @relation("MemberRequestCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  // ── Deposit-request specific fields (portal -> admin approval flow) ──────
+  // Used only when type = "DEPOSIT". Stores the deposit slip / transaction
+  // document the member uploaded as proof, plus the collection-type and
+  // reference-number metadata captured at submission time. For WITHDRAWAL /
+  // CLOSING these stay null.
+  attachments     Json      @default("[]") // [{type, name, url}] - deposit slip / txn proof
+  breakdown       Json? // {collectionTypeId, collectionTypeName} for DEPOSIT
+  referenceNo     String? // bank txn id / cheque no. / slip no.
+  transactionDate DateTime? // date on the deposit slip (when money was sent)
+  rejectionReason String?   @db.Text // filled when status = REJECTED
+  reviewedBy      String? // admin email who approved/rejected
+  reviewedAt      DateTime? // when the admin acted on the request
+
+  // Transactions Module — a portal request may be approved into a Transaction.
+  transactions Transaction[]
+
+  // Task Management Module — linked tasks
+  tasks Task[]
+
+  // Composite index for the admin queue filter: "requests of type X by status, newest first" (D16).
+  @@index([type, status, createdAt])
+}
+
+// Meeting minutes + attendance submission lifecycle.
+//   - Attendance: an authorized user submits once -> attendanceLocked=true.
+//   - Minutes:    an authorized user uploads once -> minutesLocked=true.
+//   - After lock: only SUPER_ADMIN can edit attendance or replace minutes.
+model Meeting {
+  id          String              @id @default(uuid())
+  title       String
+  date        DateTime
+  // type: ONLINE | OFFLINE. location is used for OFFLINE, link for ONLINE.
+  type        String              @default("OFFLINE")
+  location    String?
+  link        String?
+  agenda      String              @db.Text
+  createdAt   DateTime            @default(now())
+  attendances MeetingAttendance[]
+
+  // Attendance submission lifecycle
+  attendanceLocked      Boolean   @default(false)
+  attendanceSubmittedAt DateTime?
+  attendanceSubmittedBy String?
+
+  // Meeting minutes file
+  minutesUrl        String?
+  minutesFileName   String?
+  minutesUploadedAt DateTime?
+  minutesUploadedBy String?
+  minutesLocked     Boolean   @default(false)
+
+  // Task Management Module — linked tasks
+  tasks Task[]
+}
+
+// Per-user permission grants (the "authorized normal users" of rules 5 & 6).
+// permission values: MEETING_ATTENDANCE_MARK | MEETING_MINUTES_UPLOAD.
+model UserPermission {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission String
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, permission])
+  @@index([userId])
+}
+
+// ====================== RBAC MODULE ======================
+// Granular role-based access control at 4 levels: menu group → page → tab →
+// action. Replaces the flat UserPermission + role-string model above; the
+// resolver (lib/permissions/resolver.ts) reads BOTH during migration so old
+// grants keep working while the new system is adopted.
+//
+// A user's effective permissions = union of all their roles' permissions,
+// then UserPermissionOverride applied on top (DENY wins over ALLOW, ALLOW can
+// add a permission no role grants). Super Admin role short-circuits to all.
+
+// ── Effect of a per-user override ────────────────────────────────────────
+enum OverrideEffect {
+  ALLOW // grant a permission even if no role provides it
+  DENY // revoke a permission even if a role grants it (DENY wins)
+}
+
+// ── Role: a named bundle of permissions ─────────────────────────────────
+model Role {
+  id           String  @id @default(uuid())
+  name         String  @unique // e.g. "Super Admin", "Cashier", "Auditor"
+  description  String?
+  // System roles are seeded and cannot be deleted or renamed (Super Admin,
+  // Treasurer/Cashier, Auditor, Committee Member, Member Support). They may
+  // still have their permission set edited.
+  isSystem     Boolean @default(false)
+  // Marker for the single all-access role so the resolver can short-circuit
+  // without querying RolePermission rows.
+  isSuperAdmin Boolean @default(false)
+
+  users        UserRole[]
+  permissions  RolePermission[]
+  auditTargets AuditLog[]       @relation("AuditTargetRole")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isSystem])
+}
+
+// ── User ↔ Role join (a user may hold several roles) ────────────────────
+model UserRole {
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  assignedAt DateTime @default(now())
+  assignedBy String? // actor userId who granted the role
+
+  @@id([userId, roleId])
+  @@index([roleId])
+}
+
+// ── Permission: one node in the 4-level hierarchy ───────────────────────
+// The natural key is (menuGroup, page, tab, action):
+//   menuGroup only : ("Finance & Accounting", "", "", "")
+//   page           : ("Finance & Accounting", "Loan Management", "", "")
+//   tab            : ("Finance & Accounting", "Loan Management", "pending", "")
+//   action         : ("Finance & Accounting", "Loan Management", "", "approve_loan")
+//
+// IMPORTANT: tab & action use "" (empty string) rather than NULL. A compound
+// unique on nullable columns can't be used for lookups (SQL NULL ≠ NULL), so
+// we use a sentinel empty string to make every natural key a deterministic
+// 4-tuple of non-null strings. The "::"-separated permission KEY still maps
+// cleanly: an empty segment in the key == "" in the column.
+model Permission {
+  id          String  @id @default(uuid())
+  menuGroup   String // matches MenuGroup.title in SIDEBAR_MENU_GROUPS
+  page        String // matches a NavItem.label (or "" for group-only nodes)
+  tab         String  @default("") // tab slug, e.g. "pending"; "" = whole page
+  action      String  @default("") // action key, e.g. "approve_loan"; "" = whole tab/page
+  description String?
+
+  roles     RolePermission[]
+  overrides UserPermissionOverride[]
+
+  @@unique([menuGroup, page, tab, action])
+  @@index([menuGroup])
+  @@index([page])
+}
+
+// ── Role ↔ Permission join ──────────────────────────────────────────────
+model RolePermission {
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([roleId, permissionId])
+}
+
+// ── Per-user override of the role-derived permission set ────────────────
+model UserPermissionOverride {
+  id           String         @id @default(uuid())
+  userId       String
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission     @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  effect       OverrideEffect
+  reason       String?        @db.Text // audit note: why this override exists
+  createdAt    DateTime       @default(now())
+  createdBy    String? // actor userId
+
+  // A user can have at most one override (ALLOW or DENY) per permission.
+  @@unique([userId, permissionId])
+  @@index([userId])
+  @@index([permissionId])
+}
+
+// ── Append-only trail of every RBAC mutation ────────────────────────────
+// Distinct from SettingsAuditLog / TaskAuditLog / EntityAuditLog which are
+// scoped to their own modules. This one is dedicated to role/permission
+// changes (ROLE_ASSIGNED, ROLE_REVOKED, PERMISSION_GRANTED, OVERRIDE_ADDED,
+// etc.) for compliance.
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorId      String?
+  actor        User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  // Exactly one of targetUserId / targetRoleId is set per row.
+  targetUserId String?
+  targetUser   User?    @relation("AuditTargetUser", fields: [targetUserId], references: [id], onDelete: Cascade)
+  targetRoleId String?
+  targetRole   Role?    @relation("AuditTargetRole", fields: [targetRoleId], references: [id], onDelete: Cascade)
+  action       String // ROLE_CREATED, ROLE_ASSIGNED, PERMISSION_GRANTED, OVERRIDE_ADDED, ...
+  details      Json // { permissionKey, effect, reason, ... }
+  createdAt    DateTime @default(now())
+
+  @@index([targetUserId, createdAt])
+  @@index([targetRoleId, createdAt])
+  @@index([action])
+}
+
+model ProfileUpdateRequest {
+  id        String   @id @default(uuid())
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  payload   Json // Stores the requested changes as JSON
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt DateTime @default(now())
+}
+
+model FeeSetup {
+  id              String   @id @default(uuid())
+  name            String
+  amount          Decimal  @db.Decimal(12, 2)
+  effectiveDate   DateTime
+  frequency       String   @default("MONTHLY") // WEEKLY, MONTHLY, QUARTERLY, HALF_YEARLY, YEARLY
+  dueDay          Int      @default(10) // 1-31 for months, 0-6 for weekdays (0=Sun, 6=Sat)
+  hasFine         Boolean  @default(false)
+  fineAmount      Decimal? @db.Decimal(12, 2)
+  boardApproved   Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  targetType      String   @default("ALL") // ALL, SPECIFIC
+  targetMemberIds String? // Stores a JSON array of member IDs if SPECIFIC
+}
+
+model ChargeType {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+// ====================== FEES & CHARGE SETUP — CHARGE TYPE ====================
+// Backs the "Charge Type" tab on the Fees & Charge Setup page. Rows are free-form
+// charge type names created by the user (just like the Collection Type tab). The
+// Charge Management page's "Charge Type" dropdown shows only rows where
+// isActive = true and snapshots the chosen name onto Transaction.chargeTypeName
+// (with subType set to CUSTOM_CHARGE).
+model ChargeTypeConfig {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ====================== SOMITI SETTINGS — BANK ACCOUNTS ======================
+// Backs the "Somiti Settings → Active Bank Accounts" page. Each row maps a
+// payment method (Cash / Bank / Mobile) to a Chart-of-Accounts (COA) Account
+// that should receive deposits made via that method. The Deposit form reads
+// the default BankAccount for the chosen method to auto-select the COA.
+
+model BankAccount {
+  id            String  @id @default(uuid())
+  accountName   String // e.g. "Cash Drawer — Counter 1"
+  bankName      String? // e.g. "City Bank" (null for cash/mobile)
+  accountNumber String? // masked account / wallet number
+  branch        String?
+
+  // Granular PaymentMethod (kept consistent with Transaction.paymentMethod so
+  // the same enum drives both the deposit form and the default-COA lookup).
+  paymentMethod PaymentMethod
+
+  // The Chart-of-Accounts account that receives the deposit (Dr side).
+  coaAccountId String
+  coaAccount   Account @relation(fields: [coaAccountId], references: [id], onDelete: Restrict)
+
+  isActive  Boolean @default(true)
+  // Only one BankAccount should be the default per paymentMethod group
+  // (CASH / BANK_TRANSFER+CHEQUE / BKASH+NAGAD+ROCKET). Enforced by the
+  // server actions via setDefaultBankAccount().
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([paymentMethod, isActive])
+  @@index([coaAccountId])
+}
+
+// ====================== LOAN MANAGEMENT ======================
+
+// Enums
+enum LoanRepaymentFreq {
+  DAILY
+  WEEKLY
+  FORTNIGHTLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  CUSTOM
+}
+
+enum InterestType {
+  FLAT
+  REDUCING
+}
+
+enum LoanStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DISBURSED
+  REPAID
+  CLOSED
+  DEFAULTED
+  WRITTEN_OFF
+}
+
+enum InstallmentStatus {
+  PENDING
+  PAID
+  PARTIAL
+  OVERDUE
+  WAIVED
+}
+
+// Loan Product (template defining rules/terms)
+model LoanProduct {
+  id                   String            @id @default(uuid())
+  name                 String            @unique
+  code                 String?           @unique // e.g. MLP-01
+  description          String?           @db.Text
+  minAmount            Decimal           @default(0) @db.Decimal(12, 2)
+  maxAmount            Decimal           @db.Decimal(12, 2)
+  interestRate         Decimal           @db.Decimal(6, 2) // annual %
+  interestType         InterestType      @default(FLAT)
+  repaymentFreq        LoanRepaymentFreq @default(MONTHLY)
+  numberOfInstallments Int // default tenure
+  gracePeriod          Int               @default(0) // days
+  lateFinePerDay       Decimal?          @db.Decimal(10, 2)
+  allowEarlySettlement Boolean           @default(true)
+  allowInterestWaiver  Boolean           @default(false)
+  allowReschedule      Boolean           @default(false)
+  allowManualSchedule  Boolean           @default(false)
+  processingFee        Decimal           @default(0) @db.Decimal(12, 2)
+  // ── Late-payment interest / penalty (Roadmap item 17) ────────────────────
+  // Annual rate applied to overdue principal, prorated daily. e.g. 0.0200
+  // means 2% per annum on the overdue portion. NULL = no late fee on this
+  // product. graceDays is the no-penalty window after the due date (default 7).
+  lateFeePercent       Decimal?          @db.Decimal(5, 4)
+  lateFeeGraceDays     Int               @default(7)
+  isActive             Boolean           @default(true)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  loans                Loan[]
+}
+
+// Loan (an actual loan record against a member)
+model Loan {
+  id        String      @id @default(uuid())
+  loanNo    String      @unique // L0001 (auto)
+  memberId  String
+  member    Member      @relation(fields: [memberId], references: [id])
+  productId String
+  product   LoanProduct @relation(fields: [productId], references: [id])
+
+  // ── Optimistic concurrency (B12) ─────────────────────────────────────────
+  version Int @default(0)
+
+  // Snapshot of terms at creation (product may change later)
+  principal            Decimal           @db.Decimal(12, 2)
+  interestRate         Decimal           @db.Decimal(6, 2)
+  interestType         InterestType
+  repaymentFreq        LoanRepaymentFreq
+  numberOfInstallments Int
+  totalInterest        Decimal           @default(0) @db.Decimal(12, 2)
+  totalPayable         Decimal           @default(0) @db.Decimal(12, 2)
+  installmentAmount    Decimal           @default(0) @db.Decimal(12, 2)
+  processingFee        Decimal           @default(0) @db.Decimal(12, 2)
+  gracePeriod          Int               @default(0)
+  lateFinePerDay       Decimal?          @db.Decimal(10, 2)
+
+  // Lifecycle dates
+  applicationDate    DateTime   @default(now())
+  approvedDate       DateTime?
+  disbursedDate      DateTime?
+  expectedCloseDate  DateTime?
+  closedDate         DateTime?
+  status             LoanStatus @default(PENDING)
+  disbursementMethod String? // CASH BKASH BANK
+
+  purpose String? @db.Text
+  notes   String? @db.Text
+
+  // Running balances
+  principalPaid      Decimal   @default(0) @db.Decimal(12, 2)
+  interestPaid       Decimal   @default(0) @db.Decimal(12, 2)
+  finePaid           Decimal   @default(0) @db.Decimal(12, 2)
+  outstandingBalance Decimal   @default(0) @db.Decimal(12, 2)
+  nextDueDate        DateTime?
+
+  // ── Audit trail (B8) ──────────────────────────────────────────────────────
+  // Who acted at each lifecycle state, and when. Stored as userId strings
+  // (not FK relations) so admin users can be deleted without breaking loan
+  // audit history; the application resolves names by joining User at read time.
+  approvedById  String?
+  approvedAt    DateTime?
+  disbursedById String?
+  disbursedAt   DateTime?
+  writeOffById  String?
+  writeOffAt    DateTime?
+  reversedById  String?
+  reversedAt    DateTime?
+
+  // ── Write-off journal voucher (B21) ───────────────────────────────────────
+  // Points to the balanced GL voucher posted when this loan is written off.
+  // Nullable — only set when status transitions to WRITTEN_OFF.
+  journalEntryId String?
+  journalEntry   JournalEntry? @relation("LoanWriteOffJournal", fields: [journalEntryId], references: [id], onDelete: SetNull)
+
+  schedule   LoanSchedule[]
+  repayments LoanRepayment[]
+  guarantors LoanGuarantor[]
+
+  // Task Management Module — linked tasks
+  tasks Task[]
+
+  // ── NPL classification (Roadmap item 27) ──────────────────────────────────
+  // Cached bucket from the last nightly NPL scan (see lib/loanNpl.ts).
+  // Values: CURRENT | WATCH | SUBSTANDARD | DOUBTFUL | LOSS. NULL when the
+  // loan has never been flagged (always CURRENT in practice, but we keep NULL
+  // so the scan can distinguish "never scanned" from "scanned and clean").
+  nplBucket      String? // CURRENT | WATCH | SUBSTANDARD | DOUBTFUL | LOSS
+  nplFlaggedAt   DateTime?
+  nplDaysPastDue Int? // cached DPD at last scan
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([memberId])
+  @@index([status])
+  @@index([loanNo])
+  // Composite index for "member's loans filtered by status" (D16).
+  @@index([memberId, status])
+  // NPL bucket lookups (e.g. "show me all DOUBTFUL loans").
+  @@index([nplBucket])
+}
+
+// Loan Schedule (amortization installments)
+model LoanSchedule {
+  id                String            @id @default(uuid())
+  loanId            String
+  loan              Loan              @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  installmentNo     Int
+  dueDate           DateTime
+  principal         Decimal           @db.Decimal(12, 2)
+  interest          Decimal           @db.Decimal(12, 2)
+  installmentAmount Decimal           @db.Decimal(12, 2)
+  balanceAfter      Decimal           @db.Decimal(12, 2)
+  status            InstallmentStatus @default(PENDING)
+  paidDate          DateTime?
+  paidAmount        Decimal           @default(0) @db.Decimal(12, 2)
+  fine              Decimal           @default(0) @db.Decimal(12, 2)
+  // ── Late-fee accrual (Roadmap item 17) ──────────────────────────────────
+  // Running total of late fees accrued against this installment by the daily
+  // cron at /api/loans/late-fee. Updated monotonically by scanAndAccrueLateFees.
+  lateFeeAccrued    Decimal           @default(0) @db.Decimal(12, 2)
+
+  // A loan cannot have two installments with the same number (B25).
+  @@unique([loanId, installmentNo])
+  @@index([loanId])
+  @@index([status])
+}
+
+// Loan Repayment (a payment record, mirrored to Savings as LOAN_PAYMENT)
+model LoanRepayment {
+  id              String   @id @default(uuid())
+  receiptNo       String?  @unique // RPN-0001
+  loanId          String
+  loan            Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  memberId        String
+  member          Member   @relation(fields: [memberId], references: [id])
+  installmentNo   Int?
+  principal       Decimal  @default(0) @db.Decimal(12, 2)
+  interest        Decimal  @default(0) @db.Decimal(12, 2)
+  fine            Decimal  @default(0) @db.Decimal(12, 2)
+  totalAmount     Decimal  @db.Decimal(12, 2)
+  method          String // CASH BKASH BANK
+  referenceNo     String?
+  paymentDate     DateTime @default(now())
+  notes           String?
+  savingsMirrorId String? // id of the mirrored Savings row
+  createdAt       DateTime @default(now())
+
+  @@index([loanId])
+  @@index([memberId])
+  @@index([paymentDate])
+  // Composite index for "member's repayments in date order" (D16).
+  @@index([memberId, paymentDate])
+}
+
+// Loan Guarantor
+model LoanGuarantor {
+  id        String   @id @default(uuid())
+  loanId    String
+  loan      Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  memberId  String? // if guarantor is a registered member
+  member    Member?  @relation("LoanGuarantorMember", fields: [memberId], references: [id])
+  name      String
+  relation  String?
+  phone     String?
+  nidNumber String?
+  address   String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([loanId])
+}
+
+// ====================== TRUST SCORE SYSTEM MODELS (FRS v2.0) ======================
+// PKs are UUIDs (codebase convention). The FRS's INT/BIGINT PKs are adapted;
+// functionality is equivalent. See FRS §16.
+
+// Single active configuration row (FRS §16.4 / §12). Always one row, id = "singleton".
+// Every weight, threshold, penalty, and badge criterion is read from here at runtime
+// (FRS §23.1: "Never hardcode formulas").
+model KpiConfiguration {
+  id                    String    @id @default("singleton")
+  // KPI weights — must always sum to 100 (validated on save).
+  depositWeight         Int       @default(35)
+  loanWeight            Int       @default(25)
+  attendanceWeight      Int       @default(20)
+  fineWeight            Int       @default(10)
+  referralWeight        Int       @default(10)
+  // New-member starting score (FRS §3).
+  initialScore          Int       @default(60)
+  // Suspension / reactivation thresholds (FRS §9).
+  suspensionThreshold   Int       @default(40)
+  reactivationThreshold Int       @default(50)
+  // Trust-score badge tier minimums (FRS §4). Non-overlapping, span 0–100.
+  badgeDiamondMin       Int       @default(90)
+  badgePlatinumMin      Int       @default(80)
+  badgeGoldMin          Int       @default(70)
+  badgeSilverMin        Int       @default(60)
+  badgeWarningMin       Int       @default(50)
+  badgeHighRiskMin      Int       @default(40)
+  // ATTEND KPI behavior (FRS §5.4).
+  approvedAbsenceCounts Boolean   @default(true)
+  // Deposit interpolation (FRS §5.2): true = linear interpolation, false = lower threshold.
+  depositLinearInterp   Boolean   @default(true)
+  // Recovery window (months) after a loan default before the LOAN KPI can climb off zero.
+  loanRecoveryMonths    Int       @default(6)
+  updatedAt             DateTime?
+  updatedBy             String?
+}
+
+// Immutable Trust Score audit log (FRS §15). Inserted in the same $transaction
+// as the member score update (FRS §7 step 9 / §23.2).
+// IMPORTANT: there is intentionally NO update / delete path in the application.
+// For database-level hardening, run (one-time, by an admin):
+//   REVOKE UPDATE, DELETE ON "TrustScoreHistory" FROM PUBLIC;
+model TrustScoreHistory {
+  id            String   @id @default(uuid())
+  memberId      String
+  member        Member   @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  eventType     String // e.g. DEPOSIT_COLLECTED, FINE_ISSUED, LOAN_DEFAULT, MEMBER_SUSPENDED
+  referenceId   String? // id of the triggering record (savings/fine/loan/…)
+  referenceType String? // deposit | loan | fine | meeting | referral | member | config
+  kpiAffected   String? // DEPOSIT | LOAN | ATTEND | FINE | REFERRAL | ALL | NONE
+  scoreBefore   Int
+  scoreChange   Int // signed (+/-)
+  scoreAfter    Int
+  remarks       String?  @db.Text
+  createdAt     DateTime @default(now())
+  createdBy     String   @default("SYSTEM") // SYSTEM or a user id
+
+  @@index([memberId, createdAt(sort: Desc)])
+  @@index([eventType])
+}
+
+// Achievement badges (FRS §10). Independent of the Trust Score badge tier.
+// A member may hold many at once. Lost badges are kept for history.
+model AchievementBadge {
+  id         String                 @id @default(uuid())
+  memberId   String
+  member     Member                 @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  badgeCode  String // e.g. DIAMOND_SAVER, PERFECT_PAYER, …
+  badgeName  String
+  earnedDate DateTime               @default(now())
+  lostDate   DateTime?
+  status     AchievementBadgeStatus @default(ACTIVE)
+
+  @@unique([memberId, badgeCode, status])
+  @@index([memberId, status])
+  @@index([badgeCode, status])
+}
+
+// Configurable fine categories (FRS §12.3). The penaltyPoints feed the FINE KPI.
+model FineType {
+  id            String   @id @default(uuid())
+  typeName      String   @unique
+  penaltyPoints Int // must be > 0
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  fines         Fine[]
+}
+
+// A fine issued to a member. Only ISSUED (unresolved) fines deduct from the
+// FINE KPI; PAID/WAIVED reverse the penalty (FRS §5.5).
+model Fine {
+  id            String     @id @default(uuid())
+  memberId      String
+  member        Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  fineTypeId    String
+  fineType      FineType   @relation(fields: [fineTypeId], references: [id], onDelete: Restrict)
+  amount        Decimal    @default(0) @db.Decimal(12, 2)
+  status        FineStatus @default(ISSUED)
+  issuedDate    DateTime   @default(now())
+  resolvedDate  DateTime?
+  referenceType String? // savings | manual | fee
+  referenceId   String?
+  notes         String?    @db.Text
+  createdBy     String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([memberId, status])
+  @@index([fineTypeId])
+}
+
+// Per-member attendance for a meeting (FRS §5.4).
+model MeetingAttendance {
+  id        String           @id @default(uuid())
+  meetingId String
+  meeting   Meeting          @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  memberId  String
+  member    Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  status    AttendanceStatus @default(PRESENT)
+  markedAt  DateTime         @default(now())
+  markedBy  String?
+
+  @@unique([meetingId, memberId])
+  @@index([memberId])
+}
+
+// Persistent per-member notifications (FRS §14). Async, non-blocking.
+model MemberNotification {
+  id        String   @id @default(uuid())
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  type      String // SCORE_DECREASED | SCORE_INCREASED | BADGE_UPGRADED | BADGE_DOWNGRADED | ACHIEVEMENT_EARNED | ACHIEVEMENT_LOST | AUTO_SUSPENDED | REACTIVATED
+  title     String
+  message   String   @db.Text
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([memberId, isRead, createdAt(sort: Desc)])
+}
+
+// Tracks which computed portal notifications a member has dismissed.
+// Computed notifications (upcoming meetings, outstanding dues, recently
+// resolved requests) are live queries — they don't live in MemberNotification,
+// so "Mark all read" can't clear them. This table records the stable ID
+// (e.g. "req-<uuid>", "meeting-<uuid>", "due-<memberId>") so the portal bell
+// can filter them out until the underlying condition changes.
+model MemberNotificationDismissal {
+  id              String   @id @default(uuid())
+  memberId        String
+  member          Member   @relation("MemberNotificationDismissalMember", fields: [memberId], references: [id], onDelete: Cascade)
+  // The computed notification ID (e.g. "req-abc123", "meeting-xyz", "due-<memberId>").
+  notificationKey String
+  dismissedAt     DateTime @default(now())
+
+  @@unique([memberId, notificationKey])
+  @@index([memberId])
+}
+
+// ── Messaging settings (Mail + SMS) ──────────────────────────────────────────
+// Singleton rows. Secrets (SMTP password, API keys, tokens) are stored as
+// AES-256-GCM ciphertext via lib/crypto.ts — never plaintext. A blank field on
+// save means "keep existing", mirroring the Organization logo-preservation
+// pattern. lib/email.ts and lib/sms.ts read the active provider from these
+// rows; when no row exists they fall back to the legacy env-based transport.
+
+model MailSettings {
+  id               String   @id @default("singleton")
+  provider         String   @default("gmail") // gmail | custom_smtp | ses | resend | mailgun | brevo | m365
+  isActive         Boolean  @default(true)
+  // common
+  displayName      String?
+  fromEmail        String?
+  replyTo          String?
+  // SMTP-capable providers (gmail, custom_smtp, m365, ses)
+  smtpHost         String?
+  smtpPort         Int?
+  encryption       String? // none | ssl | tls
+  smtpUsername     String?
+  smtpPasswordEnc  String? // AES-256-GCM ciphertext (base64)
+  // ses-specific
+  sesRegion        String?
+  sesConfigSet     String?
+  sesSandbox       Boolean  @default(false)
+  // API-key providers (resend, mailgun, brevo)
+  apiKeyEnc        String? // AES-256-GCM ciphertext
+  apiDomain        String? // resend / mailgun sender domain
+  apiRegion        String? // mailgun US | EU
+  // limits / reliability
+  maxRetry         Int      @default(3)
+  retryIntervalMin Int      @default(5)
+  timeoutSec       Int      @default(30)
+  dailyLimit       Int? // null = unlimited
+  perMinuteLimit   Int?
+  updatedBy        String?
+  updatedAt        DateTime @updatedAt
+}
+
+model SmsSettings {
+  id                 String   @id @default("singleton")
+  provider           String   @default("bulksmsbd") // bulksmsbd | sendmysms | sslwireless | twilio | custom
+  isActive           Boolean  @default(true)
+  displayName        String?
+  // BulkSMSBD
+  bulksmsbdUrl       String? // http://bulksmsbd.net/api/smsapi
+  bulksmsbdApiKeyEnc String?
+  bulksmsbdSender    String?
+  // SendMySMS
+  sendmysmsUrl       String? // https://sendmysms.net/api.php
+  sendmysmsUser      String?
+  sendmysmsKeyEnc    String?
+  // SSLWireless
+  sslTokenEnc        String?
+  sslSender          String?
+  sslUrl             String? // https://smsplus.sslwireless.com/api/v3/send-sms
+  // Twilio
+  twilioSid          String?
+  twilioTokenEnc     String?
+  twilioFrom         String?
+  // Custom HTTP gateway
+  customUrl          String?
+  customMethod       String? // GET | POST
+  customAuthType     String? // none | bearer | basic | header
+  customAuthValueEnc String?
+  customBodyType     String? // query | json | form
+  customPhoneParam   String?
+  customMsgParam     String?
+  customSenderParam  String?
+  customApiKeyParam  String?
+  customSuccessField String?
+  customSuccessValue String?
+  // common
+  countryCode        String? // +880
+  phoneFormat        String? // 88017XXXXXXXX
+  urlEncode          Boolean  @default(true)
+  timeoutSec         Int      @default(30)
+  maxRetry           Int      @default(3)
+  dailyLimit         Int?
+  updatedBy          String?
+  updatedAt          DateTime @updatedAt
+}
+
+// Immutable audit trail of every Mail/SMS settings or template change.
+// Mirrors the TrustScoreHistory shape (append-only). `changes` holds a redacted
+// diff — secret fields are replaced with "***CHANGED***", never their values.
+model SettingsAuditLog {
+  id        String   @id @default(uuid())
+  section   String // MAIL | SMS
+  action    String // UPDATE_PROVIDER | TEST_MAIL | TEST_SMS | TEMPLATE_SAVE | TEMPLATE_DELETE
+  summary   String
+  changes   Json?
+  userId    String?
+  userEmail String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([section, createdAt(sort: Desc)])
+}
+
+// ── Transparency Settings (member portal) ─────────────────────────────────
+// Singleton backing the Somiti Settings → Transparency Settings page. Drives
+// the member-portal transparency features: a per-feature on/off toggle for
+// each of the 4 modules (Bank Statement, Investments, Projects, Meeting
+// Minutes — all default ON), plus the somiti's bank iBanking credentials so
+// members can log in and view the live bank statement themselves.
+//
+// The iBanking password is stored as AES-256-GCM ciphertext via lib/crypto.ts
+// (same pattern as MailSettings/SmsSettings secrets). The save action uses
+// `reencrypt()` so a blank password field on submit preserves the existing
+// ciphertext. The portal decrypts server-side only to render the value.
+model TransparencySettings {
+  id String @id @default("singleton")
+
+  // ── Feature toggles (all default ON) ─────────────────────────────────
+  showBankStatement  Boolean @default(true)
+  showInvestments    Boolean @default(true)
+  showProjects       Boolean @default(true)
+  showMeetingMinutes Boolean @default(true)
+
+  // ── Bank iBanking credentials ───────────────────────────────────────
+  bankName            String? // e.g. "City Bank"
+  ibankingUrl         String? // full iBanking portal URL
+  ibankingUserId      String?
+  ibankingPasswordEnc String? // AES-256-GCM ciphertext (base64) via lib/crypto.ts
+  bankInstructions    String? @db.Text // optional note shown to members
+
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+// Reusable message templates (email HTML or SMS plain text) with {{variable}}
+// placeholders. Decoupled from MailSettings/SmsSettings so they can be CRUD-ed
+// independently in the template editor.
+model MessageTemplate {
+  id        String   @id @default(uuid())
+  channel   String // EMAIL | SMS
+  key       String   @unique // e.g. MEMBER_WELCOME, DEPOSIT_RECEIVED
+  name      String
+  subject   String? // email only
+  body      String   @db.Text // SMS plain text or email HTML; supports {{vars}}
+  variables String? // comma-separated list of supported vars
+  updatedAt DateTime @updatedAt
+}
+
+// =====================================================================
+// TASK MANAGEMENT MODULE (ERP-grade)
+//
+// Supports task creation, multi-target assignment (staff / members /
+// committees), priorities, due dates, recurrence, checklists, attachments,
+// comments, reminders (SMS/Email/In-App), approve-completion workflow,
+// task dependencies, progress tracking, time logs, activity history,
+// notifications, role-based permissions, dashboards, reports, audit logs,
+// and bi-directional integration with Meetings, Loans, Collections
+// (Transactions), Member Requests, and Members.
+//
+// Recurring tasks use the "template + spawned occurrences" pattern: the
+// record the user creates is the template; the cron dispatcher clones it
+// into a new occurrence row (status=TODO) linked back via recurrenceParentId.
+// =====================================================================
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  ON_HOLD
+  IN_REVIEW // completion approval requested
+  DONE // completed; auto-closed unless requiresApproval
+  APPROVED // approved by a permitted approver
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskRecurrence {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum TaskAssigneeType {
+  STAFF
+  MEMBER
+  COMMITTEE
+}
+
+enum TaskReminderChannel {
+  IN_APP
+  SMS
+  EMAIL
+}
+
+enum TaskApprovalDecision {
+  PENDING
+  APPROVED
+  REJECTED
+  RETURNED
+}
+
+// Audit action vocabulary for TaskAuditLog.action (stored as a plain string
+// to allow forward-compatible additions without a migration, mirroring the
+// SettingsAuditLog convention).
+// Values used: CREATE | UPDATE | STATUS_CHANGE | ASSIGN | UNASSIGN | COMMENT
+//   | COMMENT_DELETE | APPROVE_REQUEST | APPROVE | REJECT | RETURN
+//   | CHECKLIST_ADD | CHECKLIST_TOGGLE | CHECKLIST_REORDER | CHECKLIST_DELETE
+//   | ATTACH_ADD | ATTACH_DELETE | TIME_LOG | TIME_LOG_DELETE
+//   | DEPENDENCY_ADD | DEPENDENCY_REMOVE | REMINDER_ADD | REMINDER_REMOVE
+//   | DELETE | RECURRENCE_SPAWN | OVERDUE_ESCALATION
+
+model Task {
+  id          String  @id @default(uuid())
+  title       String
+  description String? @db.Text
+
+  status   TaskStatus   @default(TODO)
+  priority TaskPriority @default(MEDIUM)
+  order    Int          @default(0) // Kanban column sort within status
+
+  // Schedule
+  dueDate    DateTime?
+  reminderAt DateTime? // next absolute reminder time (convenience; primary source = TaskReminder)
+
+  // Recurrence (template-task pattern). recurrenceParentId links a spawned
+  // occurrence back to its template. NULL on the template itself.
+  recurrence         TaskRecurrence @default(NONE)
+  recurrenceEndDate  DateTime?
+  recurrenceParentId String?
+  recurrenceParent   Task?          @relation("TaskRecurrence", fields: [recurrenceParentId], references: [id], onDelete: SetNull)
+  spawnedTasks       Task[]         @relation("TaskRecurrence")
+
+  // Completion + approval gate
+  completionNote      String?   @db.Text
+  requiresApproval    Boolean   @default(false)
+  approvalRequestedAt DateTime?
+  approvedById        String?
+  approvedBy          User?     @relation("TaskApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt          DateTime?
+  rejectedAt          DateTime?
+  returnReason        String?   @db.Text
+
+  // Progress (manual or auto-derived from checklist completion ratio)
+  progressPct   Int     @default(0) // 0-100
+  progressDirty Boolean @default(false) // true = manually set; do not auto-derive
+
+  // Visibility
+  isPrivate Boolean @default(false) // hidden from non-assignees/non-admins
+
+  location String?
+
+  // ── Integration links (all optional). A task may reference at most one
+  //    primary record of each kind. Bi-directional display via back-relations.
+  meetingId       String?
+  meeting         Meeting?       @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+  loanId          String?
+  loan            Loan?          @relation(fields: [loanId], references: [id], onDelete: SetNull)
+  memberRequestId String?
+  memberRequest   MemberRequest? @relation(fields: [memberRequestId], references: [id], onDelete: SetNull)
+  transactionId   String?
+  transaction     Transaction?   @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  relatedMemberId String?
+  relatedMember   Member?        @relation("TaskRelatedMember", fields: [relatedMemberId], references: [id], onDelete: SetNull)
+
+  // ── Investment & Project module links (optional) ───────────────────
+  projectId String?
+  project   Project? @relation("ProjectTasks", fields: [projectId], references: [id], onDelete: SetNull)
+
+  // Relationships
+  assignees   TaskAssignee[]
+  checklist   TaskChecklistItem[]
+  comments    TaskComment[]
+  attachments TaskAttachment[]
+  timeLogs    TaskTimeLog[]
+  reminders   TaskReminder[]
+
+  // Dependencies — this task is blocked by blockers[], and blocks dependents[].
+  blockers   TaskDependency[] @relation("TaskBlockedBy")
+  dependents TaskDependency[] @relation("TaskBlocking")
+
+  approvals TaskApprovalRequest[]
+
+  // Audit columns (mirror Transaction pattern)
+  createdBy       String?
+  createdById     String?
+  createdByIdUser User?   @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy       String?
+  updatedById     String?
+  updatedByIdUser User?   @relation("TaskUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  TaskAuditLog TaskAuditLog[]
+
+  // Indexes tuned for the board/list filters
+  @@index([status])
+  @@index([priority])
+  @@index([dueDate])
+  @@index([recurrenceParentId])
+  @@index([meetingId])
+  @@index([loanId])
+  @@index([memberRequestId])
+  @@index([transactionId])
+  @@index([relatedMemberId])
+  @@index([projectId])
+}
+
+// Polymorphic assignment resolved by assigneeType. Any one of userId /
+// memberId / committeeId is set depending on type. Multi-target assignment
+// (a task to several people, a committee, and members at once) is just
+// multiple rows.
+model TaskAssignee {
+  id           String           @id @default(uuid())
+  taskId       String
+  task         Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  assigneeType TaskAssigneeType
+  userId       String?
+  user         User?            @relation("TaskAssigneeUser", fields: [userId], references: [id], onDelete: Cascade)
+  memberId     String?
+  member       Member?          @relation("TaskAssigneeMember", fields: [memberId], references: [id], onDelete: Cascade)
+  committeeId  String?
+  committee    Committee?       @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+  createdAt    DateTime         @default(now())
+
+  @@unique([taskId, assigneeType, userId, memberId, committeeId])
+  @@index([userId])
+  @@index([memberId])
+  @@index([committeeId])
+}
+
+model TaskChecklistItem {
+  id            String    @id @default(uuid())
+  taskId        String
+  task          Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title         String
+  isDone        Boolean   @default(false)
+  order         Int       @default(0)
+  completedById String?
+  completedBy   User?     @relation("TaskChecklistCompleter", fields: [completedById], references: [id], onDelete: SetNull)
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([taskId])
+}
+
+model TaskComment {
+  id             String   @id @default(uuid())
+  taskId         String
+  task           Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorUserId   String?
+  authorUser     User?    @relation("TaskCommentAuthorUser", fields: [authorUserId], references: [id], onDelete: SetNull)
+  authorMemberId String?
+  authorMember   Member?  @relation("TaskCommentAuthorMember", fields: [authorMemberId], references: [id], onDelete: SetNull)
+  body           String   @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([taskId, createdAt(sort: Desc)])
+}
+
+model TaskAttachment {
+  id           String   @id @default(uuid())
+  taskId       String
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  url          String
+  fileName     String
+  fileType     String?
+  fileSize     Int?
+  uploadedById String?
+  uploadedBy   User?    @relation("TaskAttachmentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  @@index([taskId])
+}
+
+model TaskTimeLog {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation("TaskTimeLogUser", fields: [userId], references: [id], onDelete: SetNull)
+  memberId  String?
+  member    Member?  @relation("TaskTimeLogMember", fields: [memberId], references: [id], onDelete: SetNull)
+  minutes   Int
+  note      String?  @db.Text
+  loggedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+  @@index([userId])
+  @@index([memberId])
+}
+
+// offsetMinutes is relative to dueDate. Negative = before due (e.g. -1440 =
+// 1 day before). dispatchedAt is stamped by the cron dispatcher so a reminder
+// never fires twice. For recurring tasks, each spawned occurrence gets fresh
+// reminders with dispatchedAt=NULL.
+model TaskReminder {
+  id            String              @id @default(uuid())
+  taskId        String
+  task          Task                @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  channel       TaskReminderChannel
+  offsetMinutes Int                 @default(-1440) // minutes from dueDate
+  dispatchedAt  DateTime?
+  createdAt     DateTime            @default(now())
+
+  @@unique([taskId, channel, offsetMinutes])
+  @@index([taskId, dispatchedAt])
+}
+
+// Self-relation: a row means `taskId` cannot start until `dependsOnTaskId` is
+// APPROVED/DONE. The server action rejects cycles via DFS before insert.
+model TaskDependency {
+  id              String   @id @default(uuid())
+  taskId          String
+  task            Task     @relation("TaskBlockedBy", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOnTaskId String
+  dependsOnTask   Task     @relation("TaskBlocking", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+
+  @@unique([taskId, dependsOnTaskId])
+  @@index([dependsOnTaskId])
+}
+
+// Append-only audit trail (mirrors SettingsAuditLog / TrustScoreHistory).
+// `changes` holds a redacted JSON diff — never secrets. Drives the task
+// detail page's activity timeline.
+model TaskAuditLog {
+  id            String   @id @default(uuid())
+  taskId        String
+  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actorUserId   String?
+  actorUser     User?    @relation("TaskAuditActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorMemberId String?
+  actorMember   Member?  @relation("TaskAuditActorMember", fields: [actorMemberId], references: [id], onDelete: SetNull)
+  action        String // CREATE | UPDATE | STATUS_CHANGE | ...
+  summary       String
+  changes       Json?
+  createdAt     DateTime @default(now())
+
+  @@index([taskId, createdAt(sort: Desc)])
+  @@index([action])
+}
+
+// Tracks the completion-approval gate. Only one PENDING row per task at a
+// time (enforced in the action). Decided rows are retained for history.
+model TaskApprovalRequest {
+  id            String               @id @default(uuid())
+  taskId        String
+  task          Task                 @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  requestedById String
+  requestedBy   User                 @relation("TaskApprovalRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  requestedAt   DateTime             @default(now())
+  decision      TaskApprovalDecision @default(PENDING)
+  decidedById   String?
+  decidedBy     User?                @relation("TaskApprovalDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt     DateTime?
+  comment       String?              @db.Text
+
+  @@index([taskId, decision])
+}
+
+// ── Committees ───────────────────────────────────────────────────────────
+// Real entity backing "assign to committee". A committee is a named group of
+// staff and/or members (optionally chaired by a staff user). Tasks assigned
+// to a committee are visible to all of its members.
+model Committee {
+  id          String   @id @default(uuid())
+  name        String
+  description String?  @db.Text
+  chairUserId String?
+  chairUser   User?    @relation("CommitteeChair", fields: [chairUserId], references: [id], onDelete: SetNull)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members       CommitteeMember[]
+  taskAssignees TaskAssignee[]
+
+  @@index([isActive])
+}
+
+// Junction — a committee membership. Either memberId (Member) or userId
+// (Staff) is set per row. role is a free label (MEMBER, SECRETARY, etc.).
+model CommitteeMember {
+  id          String    @id @default(uuid())
+  committeeId String
+  committee   Committee @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+  memberId    String?
+  member      Member?   @relation("CommitteeMemberMember", fields: [memberId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?     @relation("CommitteeMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  role        String? // MEMBER | SECRETARY | TREASURER | ...
+  joinedAt    DateTime  @default(now())
+
+  @@unique([committeeId, memberId])
+  @@unique([committeeId, userId])
+  @@index([committeeId])
+}
+
+// =====================================================================
+// INVESTMENT MANAGEMENT MODULE
+//
+// Tracks where Somiti funds are invested (financial assets). Every
+// financial event (purchase / income / exit / write-off) auto-generates a
+// balanced double-entry JournalEntry via the shared lib/portfolio/posting
+// service, reusing the existing Chart of Accounts engine. Investments may
+// optionally link to one or more Projects (scenario D) through the
+// InvestmentProjectLink join table.
+//
+// Type-specific fields (Stock / FDR / Land / Property / Business / Loan)
+// are stored in `Investment.details` (Json) — mirroring the
+// Transaction.breakdown pattern — so the schema stays stable while the
+// form renders different fields per type.
+// =====================================================================
+
+enum InvestmentStatus {
+  DRAFT
+  ACTIVE
+  PARTIALLY_EXITED
+  FULLY_EXITED
+  MATURED
+  SUSPENDED
+  WRITTEN_OFF
+}
+
+enum InvestmentIncomeType {
+  DIVIDEND
+  INTEREST
+  RENTAL
+  PROFIT_SHARE
+  OTHER
+}
+
+enum InvestmentExitType {
+  FULL_EXIT
+  PARTIAL_EXIT
+  MATURED
+  WRITTEN_OFF
+}
+
+enum ValuationMethod {
+  MARKET
+  GOVT_RATE
+  APPRAISER
+}
+
+// Investment Type master. Seeded with the 10 defaults (Stock, FDR, Land,
+// Property, Business Equity, Mutual Fund/Bond, Loan to External Party,
+// Gold/Commodity, Foreign Currency, Other); admins can add custom rows.
+// `assetAccountCode` is the stable CoA code the posting service resolves
+// for the asset (debit) leg of a purchase.
+model InvestmentType {
+  id               String   @id @default(uuid())
+  name             String   @unique
+  slug             String   @unique
+  // Sub-category options rendered in the dynamic dropdown, e.g.
+  // ["Listed", "Unlisted"] for Stock.
+  subCategories    Json     @default("[]")
+  // Stable CoA account code (e.g. "INVESTMENT-SHARES") resolved at posting.
+  assetAccountCode String
+  isActive         Boolean  @default(true)
+  isSystem         Boolean  @default(false) // seeded types can be hidden, not deleted
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  investments Investment[]
+
+  @@index([isActive])
+}
+
+model Investment {
+  id               String         @id @default(uuid())
+  investmentNo     String         @unique // INV-2026-001 (atomic via Counter)
+  name             String
+  investmentTypeId String
+  investmentType   InvestmentType @relation(fields: [investmentTypeId], references: [id], onDelete: Restrict)
+  subCategory      String?
+
+  // ── Optimistic concurrency (B14) ─────────────────────────────────────────
+  version Int @default(0)
+
+  investmentDate DateTime
+  maturityDate   DateTime?
+  description    String?   @db.Text
+  tags           Json      @default("[]")
+
+  // ── Financial details (Section 2) ───────────────────────────────────
+  // All amounts stored in BDT; original currency + rate kept for audit.
+  investedAmount Decimal @db.Decimal(16, 2)
+  currency       String  @default("BDT") // BDT | USD | EUR
+  exchangeRate   Decimal @default(1) @db.Decimal(12, 4)
+  bdtEquivalent  Decimal @db.Decimal(16, 2)
+  feesAmount     Decimal @default(0) @db.Decimal(16, 2) // brokerage / commission / fee
+  costBasis      Decimal @db.Decimal(16, 2) // = investedAmount + fees (BDT)
+
+  // Current mark (updated by InvestmentValuation rows).
+  currentValue      Decimal   @default(0) @db.Decimal(16, 2)
+  lastValuationDate DateTime?
+
+  // ── Expected returns (Section 4) ────────────────────────────────────
+  expectedAnnualReturn   Decimal   @default(0) @db.Decimal(8, 2) // %
+  incomeTypes            Json      @default("[]") // ["Dividend","Interest",...]
+  paymentFrequency       String?
+  expectedNextIncomeDate DateTime?
+  expectedIncomeAmount   Decimal?  @db.Decimal(16, 2)
+
+  // ── Accounting (Section 5) ──────────────────────────────────────────
+  // debitAccountId  → the asset account (auto from type's assetAccountCode)
+  // creditAccountId → cash/bank (where funds left)
+  debitAccountId  String
+  debitAccount    Account  @relation("InvestmentDebitAccount", fields: [debitAccountId], references: [id], onDelete: Restrict)
+  creditAccountId String?
+  creditAccount   Account? @relation("InvestmentCreditAccount", fields: [creditAccountId], references: [id], onDelete: SetNull)
+  paymentMethod   String? // CASH | BANK_TRANSFER | CHEQUE | BKASH | NAGAD | ROCKET
+  bankAccountId   String?
+  referenceNo     String?
+
+  // The purchase voucher created on save.
+  journalEntryId String?
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+
+  status InvestmentStatus @default(DRAFT)
+
+  // ── Type-specific fields (Section 3) + documents (Section 6) ────────
+  // details:    Stock / FDR / Land / Property / Business / Loan fields.
+  // documents:  [{name, type, url, date, notes}]
+  details   Json @default("{}")
+  documents Json @default("[]")
+
+  // ── Relations ───────────────────────────────────────────────────────
+  incomes       InvestmentIncome[]
+  exits         InvestmentExit[]
+  valuations    InvestmentValuation[]
+  projectLinks  InvestmentProjectLink[]
+  // Income Distribution Module — distributions sourced from this investment's income
+  distributions IncomeDistribution[]    @relation("InvestmentDistributions")
+  auditLogs     EntityAuditLog[]        @relation("InvestmentAuditLogs")
+
+  // ── Audit ───────────────────────────────────────────────────────────
+  createdBy   String?
+  createdById String?
+  updatedBy   String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+  deletedBy   String?
+
+  @@index([status])
+  @@index([investmentTypeId])
+  @@index([investmentDate])
+  @@index([maturityDate])
+}
+
+model InvestmentIncome {
+  id            String               @id @default(uuid())
+  investmentId  String
+  investment    Investment           @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  incomeDate    DateTime
+  incomeType    InvestmentIncomeType
+  grossAmount   Decimal              @db.Decimal(16, 2)
+  tdsPercent    Decimal              @default(0) @db.Decimal(6, 2)
+  tdsAmount     Decimal              @default(0) @db.Decimal(16, 2)
+  netAmount     Decimal              @db.Decimal(16, 2)
+  paymentMethod String?
+  bankAccountId String?
+  referenceNo   String?
+  notes         String?              @db.Text
+
+  journalEntryId String?
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+
+  createdBy   String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  Account     Account? @relation(fields: [accountId], references: [id])
+  accountId   String?
+
+  @@index([investmentId, incomeDate])
+  @@index([incomeType])
+}
+
+model InvestmentExit {
+  id               String             @id @default(uuid())
+  investmentId     String
+  investment       Investment         @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  exitType         InvestmentExitType
+  exitDate         DateTime
+  unitsSold        Decimal?           @db.Decimal(16, 4)
+  salePricePerUnit Decimal?           @db.Decimal(16, 4)
+  proceeds         Decimal            @db.Decimal(16, 2)
+  costBasisSold    Decimal            @db.Decimal(16, 2)
+  capitalGainLoss  Decimal            @db.Decimal(16, 2) // signed: + gain, - loss
+  taxPercent       Decimal            @default(0) @db.Decimal(6, 2)
+  taxAmount        Decimal            @default(0) @db.Decimal(16, 2)
+  netProceeds      Decimal            @db.Decimal(16, 2)
+  paymentMethod    String?
+  bankAccountId    String?
+  notes            String?            @db.Text
+
+  journalEntryId String?
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+
+  createdBy   String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  Account     Account? @relation(fields: [accountId], references: [id])
+  accountId   String?
+
+  @@index([investmentId, exitDate])
+}
+
+model InvestmentValuation {
+  id                  String          @id @default(uuid())
+  investmentId        String
+  investment          Investment      @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  valuationDate       DateTime
+  marketValue         Decimal         @db.Decimal(16, 2)
+  method              ValuationMethod @default(MARKET)
+  valuer              String?
+  notes               String?         @db.Text
+  // When true, posts an unrealized gain/loss JournalEntry (mark-to-market).
+  createGainLossEntry Boolean         @default(false)
+  // Change vs the previous valuation (signed), computed at insert time.
+  changeAmount        Decimal?        @db.Decimal(16, 2)
+
+  journalEntryId String?
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+
+  createdBy   String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  Account     Account? @relation(fields: [accountId], references: [id])
+  accountId   String?
+
+  @@index([investmentId, valuationDate])
+}
+
+// =====================================================================
+// PROJECT MANAGEMENT MODULE
+//
+// Manages active ventures/operations the Somiti runs. Distinct from but
+// linkable to Investments. Every expense/revenue auto-generates a balanced
+// JournalEntry via lib/portfolio/posting. Project-internal budgeting is
+// tracked by ProjectCostCenter rows; the GL posts to a single project
+// expense/revenue account (cost center recorded on the expense row +
+// voucher memo) so the CoA stays clean.
+// =====================================================================
+
+enum ProjectType {
+  REAL_ESTATE
+  BUSINESS_VENTURE
+  AGRICULTURE
+  INFRASTRUCTURE
+  SOCIAL
+  SERVICE
+  OTHER
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum ProjectPhase {
+  PLANNING
+  EXECUTION
+  MONITORING
+  CLOSING
+}
+
+enum ProjectExpenseCategory {
+  MATERIAL
+  LABOR
+  SERVICE
+  ASSET
+  OTHER
+}
+
+enum ProjectRevenueType {
+  PLOT_SALE
+  PRODUCT_SALE
+  SERVICE
+  RENTAL
+  OTHER
+}
+
+enum MilestoneStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  DELAYED
+}
+
+enum BudgetSource {
+  SOMITI_FUND
+  INVESTMENT
+  LOAN
+  DONOR
+  MIXED
+}
+
+model Project {
+  id          String      @id @default(uuid())
+  projectNo   String      @unique // PRJ-2026-001 (atomic via Counter)
+  name        String
+  type        ProjectType
+  code        String? // custom shortcode
+  description String?     @db.Text
+  tags        Json        @default("[]")
+
+  // ── Timeline (Section 2) ────────────────────────────────────────────
+  plannedStartDate DateTime?
+  plannedEndDate   DateTime?
+  actualStartDate  DateTime?
+  phase            ProjectPhase @default(PLANNING)
+
+  // ── Team (Section 3) ────────────────────────────────────────────────
+  managerMemberId     String?
+  managerMember       Member? @relation("ProjectManager", fields: [managerMemberId], references: [id], onDelete: SetNull)
+  sponsorMemberId     String?
+  sponsorMember       Member? @relation("ProjectSponsor", fields: [sponsorMemberId], references: [id], onDelete: SetNull)
+  teamMembers         Json    @default("[]") // [{id,name}]
+  externalContractors String? @db.Text
+
+  // ── Budget (Section 4) ──────────────────────────────────────────────
+  totalBudget  Decimal      @default(0) @db.Decimal(16, 2)
+  budgetSource BudgetSource @default(SOMITI_FUND)
+
+  // ── Revenue plan (Section 5) ────────────────────────────────────────
+  // {expectedRevenue, revenueType, expectedProfit, expectedMarginPct}
+  revenuePlan Json @default("{}")
+
+  // ── Accounting setup (Section 8) ────────────────────────────────────
+  revenueAccountId  String
+  revenueAccount    Account  @relation("ProjectRevenueAccount", fields: [revenueAccountId], references: [id], onDelete: Restrict)
+  expenseAccountId  String
+  expenseAccount    Account  @relation("ProjectExpenseAccount", fields: [expenseAccountId], references: [id], onDelete: Restrict)
+  wipAssetAccountId String?
+  wipAssetAccount   Account? @relation("ProjectWipAccount", fields: [wipAssetAccountId], references: [id], onDelete: SetNull)
+  bankAccountId     String?
+
+  status    ProjectStatus @default(PLANNING)
+  documents Json          @default("[]") // [{name, type, url, date}]
+
+  // ── Relations ───────────────────────────────────────────────────────
+  costCenters   ProjectCostCenter[]
+  expenses      ProjectExpense[]
+  revenues      ProjectRevenue[]
+  milestones    ProjectMilestone[]
+  projectLinks  InvestmentProjectLink[]
+  // Income Distribution Module — distributions sourced from this project's profit
+  distributions IncomeDistribution[]    @relation("ProjectDistributions")
+  tasks         Task[]                  @relation("ProjectTasks")
+  auditLogs     EntityAuditLog[]        @relation("ProjectAuditLogs")
+
+  // ── Audit ───────────────────────────────────────────────────────────
+  createdBy   String?
+  createdById String?
+  updatedBy   String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+  deletedBy   String?
+
+  @@index([status])
+  @@index([type])
+  @@index([plannedStartDate])
+}
+
+model ProjectCostCenter {
+  id           String   @id @default(uuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name         String
+  budgetAmount Decimal  @default(0) @db.Decimal(16, 2)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  expenses ProjectExpense[]
+
+  @@index([projectId])
+}
+
+model ProjectExpense {
+  id             String                 @id @default(uuid())
+  projectId      String
+  project        Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  expenseDate    DateTime
+  referenceNo    String?
+  description    String
+  costCenterId   String?
+  costCenter     ProjectCostCenter?     @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  category       ProjectExpenseCategory @default(OTHER)
+  amount         Decimal                @db.Decimal(16, 2)
+  vendor         String?
+  paymentMethod  String?
+  bankAccountId  String?
+  chequeNo       String?
+  approvalStatus String                 @default("APPROVED") // APPROVED | PENDING | REJECTED
+  approvedById   String?
+  receiptUrl     String?
+  notes          String?                @db.Text
+
+  journalEntryId String?
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+
+  createdBy   String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([projectId, expenseDate])
+  @@index([costCenterId])
+}
+
+model ProjectRevenue {
+  id            String             @id @default(uuid())
+  projectId     String
+  project       Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  revenueDate   DateTime
+  referenceNo   String?
+  description   String
+  revenueType   ProjectRevenueType @default(OTHER)
+  customer      String?
+  amount        Decimal            @db.Decimal(16, 2)
+  taxPercent    Decimal            @default(0) @db.Decimal(6, 2)
+  taxAmount     Decimal            @default(0) @db.Decimal(16, 2)
+  netAmount     Decimal            @db.Decimal(16, 2)
+  paymentMethod String?
+  bankAccountId String?
+  notes         String?            @db.Text
+
+  journalEntryId String?
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+
+  createdBy   String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([projectId, revenueDate])
+  @@index([revenueType])
+}
+
+model ProjectMilestone {
+  id         String          @id @default(uuid())
+  projectId  String
+  project    Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name       String
+  targetDate DateTime?
+  actualDate DateTime?
+  status     MilestoneStatus @default(NOT_STARTED)
+  value      Decimal?        @db.Decimal(16, 2)
+  notes      String?         @db.Text
+  sortOrder  Int             @default(0)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+}
+
+// =====================================================================
+// INVESTMENT ↔ PROJECT LINKING
+// =====================================================================
+
+enum InvestmentLinkType {
+  FUNDS_PROJECT // this investment funds the project
+  MANAGES_ASSET // the project manages this investment asset
+}
+
+// Join table supporting all four scenarios:
+//   A — Investment only (no links)
+//   B — Investment ↔ one project
+//   C — Project only (no investment)
+//   D — one investment ↔ many projects (multiple rows)
+model InvestmentProjectLink {
+  id               String             @id @default(uuid())
+  investmentId     String
+  investment       Investment         @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  projectId        String
+  project          Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  relationshipType InvestmentLinkType @default(FUNDS_PROJECT)
+  relationshipNote String?            @db.Text
+  linkedDate       DateTime           @default(now())
+  linkedById       String?
+  linkedByName     String?
+  createdAt        DateTime           @default(now())
+
+  @@unique([investmentId, projectId])
+  @@index([investmentId])
+  @@index([projectId])
+}
+
+// =====================================================================
+// GENERIC ENTITY AUDIT LOG
+//
+// Append-only trail shared by Investment & Project detail "Activity Log"
+// tabs. Mirrors the SettingsAuditLog / TaskAuditLog shape (changes holds
+// a redacted JSON diff). entityType: INVESTMENT | PROJECT.
+// =====================================================================
+
+model EntityAuditLog {
+  id           String      @id @default(uuid())
+  entityType   String // INVESTMENT | PROJECT
+  // Polymorphic target — exactly one of investmentId / projectId is set.
+  investmentId String?
+  investment   Investment? @relation("InvestmentAuditLogs", fields: [investmentId], references: [id], onDelete: Cascade)
+  projectId    String?
+  project      Project?    @relation("ProjectAuditLogs", fields: [projectId], references: [id], onDelete: Cascade)
+  action       String // CREATE | UPDATE | STATUS_CHANGE | INCOME | EXIT | VALUATION | EXPENSE | REVENUE | LINK | UNLINK | DELETE
+  summary      String
+  changes      Json?
+  actorUserId  String?
+  actorName    String?
+  createdAt    DateTime    @default(now())
+
+  @@index([entityType, investmentId, createdAt(sort: Desc)])
+  @@index([entityType, projectId, createdAt(sort: Desc)])
+  @@index([action])
+}
+
+// ── Income Distribution: a single distribution run (header) ─────────────
+model IncomeDistribution {
+  id             String                 @id @default(uuid())
+  distributionNo String                 @unique // e.g. DIST-2026-001
+  sourceType     DistributionSourceType
+  // Exactly one of investmentId / projectId is set when sourceType is not GENERAL.
+  investmentId   String?
+  investment     Investment?            @relation("InvestmentDistributions", fields: [investmentId], references: [id], onDelete: Restrict)
+  projectId      String?
+  project        Project?               @relation("ProjectDistributions", fields: [projectId], references: [id], onDelete: Restrict)
+
+  // ── Optimistic concurrency (B13) ─────────────────────────────────────────
+  version Int @default(0)
+
+  title       String
+  description String? @db.Text
+
+  basis        DistributionBasis @default(PRO_RATA)
+  snapshotDate DateTime // date fund shares are computed at (immutable once POSTED)
+
+  totalDistributable Decimal @db.Decimal(16, 2) // amount being split
+  eligibleFund       Decimal @db.Decimal(16, 2) // Σ eligible members' fund at snapshot (audit)
+  memberCount        Int     @default(0)
+
+  status DistributionStatus @default(DRAFT)
+
+  // Posted voucher (Dr income / Cr MEMBER-SAVINGS-LIABILITY) and optional reversal.
+  journalEntryId    String?
+  journalEntry      JournalEntry? @relation("DistributionPostedJournal", fields: [journalEntryId], references: [id], onDelete: Restrict)
+  reversalJournalId String?
+  reversalJournal   JournalEntry? @relation("DistributionReversalJournal", fields: [reversalJournalId], references: [id], onDelete: Restrict)
+  reversalReason    String?
+  reversedAt        DateTime?
+
+  postedAt     DateTime?
+  postedById   String?
+  postedByName String?
+
+  shares DistributionShare[]
+
+  // Audit
+  createdBy     String?
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([sourceType])
+  @@index([investmentId])
+  @@index([projectId])
+  @@index([status])
+  @@index([snapshotDate])
+}
+
+// ── Income Distribution: one share per member (persisted, immutable) ────
+model DistributionShare {
+  id             String             @id @default(uuid())
+  distributionId String
+  distribution   IncomeDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+
+  memberId   String
+  member     Member @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  memberNo   String // snapshot of Member.memberNo for audit/history
+  memberName String // snapshot of Member.fullName for audit/history
+
+  // Member's fund at snapshotDate — captured once, never recomputed.
+  fundAtSnapshot Decimal @db.Decimal(16, 2)
+  weight         Decimal @db.Decimal(10, 6) // 0–1 fraction of the total
+  amount         Decimal @db.Decimal(16, 2) // this member's profit
+
+  // The PROFIT Savings mirror row created for this share on posting.
+  savingsMirrorId String?  @unique
+  savingsMirror   Savings? @relation(fields: [savingsMirrorId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@unique([distributionId, memberId])
+  @@index([memberId])
+}
+
+// ── Cloud Backup: history of every database snapshot taken from the admin UI.
+// Backs the System & Settings → Cloud Backup page. Each row records a single
+// JSON dump of every Prisma table; the dump itself lives on disk under
+// `BACKUP_STORAGE_DIR` (default: ./backups) and is served back through the
+// /api/backup/[id]/download route.
+//
+// Status transitions:
+//   PENDING -> IN_PROGRESS -> SUCCESS   (happy path)
+//                       \-> FAILED     (any thrown error during dump)
+//
+// `tableCounts` captures per-table row counts for the audit panel;
+// `filePath` is absolute so the download route can find the file regardless
+// of where the app is deployed.
+model Backup {
+  id            String    @id @default(uuid())
+  // Human-readable filename surfaced in the UI and used for the download
+  // Content-Disposition header. Format: backup-YYYY-MM-DD-HHmmss-<shortId>.json
+  filename      String
+  // Absolute path of the JSON dump on the local filesystem.
+  filePath      String
+  // File size in bytes — captured at write time so the UI can show the
+  // size even before reading the file again.
+  sizeBytes     BigInt    @default(0)
+  // JSON object: { TableName: rowCount } for every table in the dump.
+  tableCounts   Json      @default("{}")
+  // Count of tables included in the dump.
+  tableCount    Int       @default(0)
+  // Where the backup originated: "manual" (Create Backup button) or
+  // "scheduled" (cron / external trigger — reserved for future use).
+  trigger       String    @default("manual")
+  // PENDING | IN_PROGRESS | SUCCESS | FAILED
+  status        String    @default("PENDING")
+  // Free-text error message when status = FAILED; null otherwise.
+  error         String?
+  // SHA-256 of the file contents — lets us detect tampering / corruption.
+  checksum      String?
+  // Who triggered the backup.
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime  @default(now())
+  finishedAt    DateTime?
+
+  // ── Cloud backup retention (D20) ────────────────────────────────────────────
+  // expiresAt: when the backup should be auto-purged (NULL = keep forever).
+  expiresAt       DateTime?
+  // storageUrl: remote object-store URL (S3 / GCS / Azure Blob / Cloudinary)
+  // for off-host copies. NULL when storageProvider = 'local'.
+  storageUrl      String?
+  // storageProvider: where the dump physically lives. 'local' for the on-disk
+  // copy under BACKUP_STORAGE_DIR; 's3' | 'gcs' | 'azure' | 'cloudinary' for
+  // cloud-pushed copies. Default 'local' so existing rows are valid.
+  storageProvider String    @default("local")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([status])
+}
+
+// ============================================================================
+// ELECTION MANAGEMENT MODULE (Spec v2.0)
+//
+// Implements direct member voting for the Executive Committee with encrypted
+// confidential ballots, deterministic counting, tie handling, runoff elections,
+// quorum validation, audit trails, and observer monitoring.
+//
+// Modifications from the spec (see worklog.md §M1–M12):
+//  • Committee models renamed to ElectionCommittee* (existing Committee is the
+//    Task-Management committee and remains untouched).
+//  • @default(uuid()) used everywhere for consistency with the rest of the schema.
+//  • Member/User relations point at the existing Member and User models.
+// ============================================================================
+
+// ── Enums ────────────────────────────────────────────────────────────────────
+
+enum ElectionStatus {
+  DRAFT
+  NOMINATION_OPEN
+  NOMINATION_CLOSED
+  CANDIDATES_FINALIZED
+  VOTING_SCHEDULED
+  VOTING_OPEN
+  VOTING_CLOSED
+  COUNTING
+  RESULTS_READY
+  RESULTS_PUBLISHED
+  COMMITTEE_FORMED
+  ARCHIVED
+  CANCELLED
+  FROZEN
+  RUNOFF_REQUIRED
+}
+
+enum NominationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  WITHDRAWN
+  DISQUALIFIED
+}
+
+enum CandidateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+  DISQUALIFIED
+  UNCONTESTED_ELECTED
+}
+
+enum VoteStatus {
+  VALID
+  INVALID
+}
+
+enum BallotStorageMode {
+  RELATIONAL
+  ENCRYPTED
+}
+
+enum TieBreakingMethod {
+  RUNOFF_ELECTION
+  COMMITTEE_DECISION
+  LOTTERY_DRAW
+  PREVIOUS_TERM
+  SENIORITY
+}
+
+enum UncontestedPolicy {
+  AUTO_ELECT
+  STILL_REQUIRE_VOTE
+}
+
+enum ElectionAuditAction {
+  CREATED
+  UPDATED
+  DELETED_DRAFT
+  CLONED
+  NOMINATION_OPENED
+  NOMINATION_CLOSED
+  CANDIDATE_APPROVED
+  CANDIDATE_REJECTED
+  CANDIDATE_WITHDRAWN
+  CANDIDATE_DISQUALIFIED
+  CANDIDATES_FINALIZED
+  ELIGIBILITY_SNAPSHOT_CREATED
+  ELIGIBILITY_OVERRIDDEN
+  VOTING_OPENED
+  VOTING_CLOSED
+  VOTING_REOPENED
+  BALLOT_CAST
+  BALLOT_INVALIDATED
+  COUNTING_STARTED
+  COUNTING_COMPLETED
+  RESULTS_PUBLISHED
+  RESULTS_PARTIALLY_PUBLISHED
+  RUNOFF_CREATED
+  TIE_RESOLVED
+  COMMITTEE_FORMED
+  COMMITTEE_VACANCY
+  CANCELLED
+  FROZEN
+  UNFROZEN
+  QUORUM_NOT_MET
+  TEST_ELECTION_CREATED
+  TEST_ELECTION_PURGED
+  KEY_ROTATED
+  RECOUNT_PERFORMED
+}
+
+enum ElectionNotificationType {
+  NOMINATION_OPENED
+  NOMINATION_CLOSING_SOON
+  NOMINATION_CLOSED
+  VOTING_OPENED
+  VOTING_REMINDER
+  VOTING_CLOSING_SOON
+  VOTING_CLOSED
+  VOTING_REOPENED
+  RESULTS_PUBLISHED
+  RESULTS_PARTIALLY_PUBLISHED
+  ELECTION_CANCELLED
+  ELECTION_FROZEN
+  ELECTION_UNFROZEN
+  RUNOFF_SCHEDULED
+  COMMITTEE_FORMED
+  QUORUM_NOT_MET
+}
+
+// ── Election ─────────────────────────────────────────────────────────────────
+
+model Election {
+  id          String  @id @default(uuid())
+  code        String  @unique
+  name        String
+  description String? @db.Text
+
+  // ── Optimistic concurrency (B20) ─────────────────────────────────────────
+  version Int @default(0)
+
+  termStartDate DateTime
+  termEndDate   DateTime
+
+  nominationStartAt DateTime
+  nominationEndAt   DateTime
+
+  votingStartAt DateTime
+  votingEndAt   DateTime
+
+  timezone String @default("Asia/Dhaka")
+
+  status         ElectionStatus  @default(DRAFT)
+  previousStatus ElectionStatus?
+
+  // Configuration
+  allowSelfNomination   Boolean @default(true)
+  allowMemberNomination Boolean @default(false)
+  secretBallot          Boolean @default(true)
+  showLiveResults       Boolean @default(false)
+
+  maxPositionsPerCandidate Int @default(1)
+
+  minTurnoutPercentage Decimal? @db.Decimal(5, 2)
+  quorumRequired       Boolean  @default(false)
+
+  allowTermOverlap Boolean @default(false)
+
+  ballotStorageMode BallotStorageMode @default(ENCRYPTED)
+
+  tieBreakingMethod TieBreakingMethod @default(RUNOFF_ELECTION)
+
+  isTestElection Boolean @default(false)
+
+  parentElectionId String?
+  isRunoff         Boolean @default(false)
+  runoffPositionId String?
+
+  activeKeyId String?
+
+  rulesJson            Json?
+  eligibilityRulesJson Json?
+
+  // Cryptographic integrity hashes (SHA-256) captured at each lockable stage.
+  candidateListHash       String?
+  eligibilitySnapshotHash String?
+  resultHash              String?
+  configHash              String?
+
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  positions            ElectionPosition[]
+  eligibility          ElectionEligibility[]
+  eligibilityOverrides ElectionEligibilityOverride[]
+  nominations          ElectionNomination[]
+  candidates           ElectionCandidate[]
+  ballots              ElectionBallot[]
+  participation        ElectionParticipation[]
+  results              ElectionResult[]
+  auditLogs            ElectionAuditLog[]
+  committees           ElectionCommittee[]
+  notifications        ElectionNotification[]
+  observers            ElectionObserverAssignment[]
+  recountRequests      RecountRequest[]
+  keyRotations         BallotKeyRotation[]
+  scheduledEvents      ElectionScheduledEvent[]
+  idempotencyKeys      ElectionIdempotencyKey[]
+  settingsSnapshots    ElectionSettingsSnapshot[]
+
+  parentElection  Election?  @relation("RunoffElection", fields: [parentElectionId], references: [id])
+  runoffElections Election[] @relation("RunoffElection")
+
+  createdBy User @relation("ElectionCreatedBy", fields: [createdById], references: [id])
+
+  @@index([status])
+  @@index([votingStartAt])
+  @@index([votingEndAt])
+  @@index([isTestElection])
+  @@index([parentElectionId])
+}
+
+model ElectionPosition {
+  id         String @id @default(uuid())
+  electionId String
+
+  name        String
+  code        String
+  description String? @db.Text
+
+  displayOrder Int @default(0)
+
+  seatCount     Int @default(1)
+  minSelections Int @default(1)
+  maxSelections Int @default(1)
+
+  isRequired Boolean @default(true)
+  isActive   Boolean @default(true)
+
+  showNOTA          Boolean           @default(true)
+  allowSkip         Boolean           @default(false)
+  uncontestedPolicy UncontestedPolicy @default(AUTO_ELECT)
+
+  resultsPublishedAt   DateTime?
+  resultsPublishedById String?
+  resultsPublished     Boolean   @default(false)
+  runoffRequired       Boolean   @default(false)
+
+  election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+
+  nominations ElectionNomination[]
+  candidates  ElectionCandidate[]
+  results     ElectionResult[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([electionId, code])
+  @@index([electionId, displayOrder])
+}
+
+model ElectionEligibility {
+  id String @id @default(uuid())
+
+  electionId String
+  memberId   String
+
+  eligible Boolean @default(true)
+  reason   String?
+
+  determinedAt DateTime @default(now())
+  snapshotId   String?
+
+  election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  member   Member   @relation("ElectionEligibilityMember", fields: [memberId], references: [id])
+
+  @@unique([electionId, memberId])
+  @@index([memberId])
+  @@index([electionId, eligible])
+}
+
+model ElectionEligibilityOverride {
+  id String @id @default(uuid())
+
+  electionId String
+  memberId   String
+
+  originalEligible   Boolean
+  overriddenEligible Boolean
+  reason             String  @db.Text
+
+  overriddenById String
+  overriddenAt   DateTime @default(now())
+
+  election     Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  member       Member   @relation("ElectionEligibilityOverrideMember", fields: [memberId], references: [id])
+  overriddenBy User     @relation("ElectionEligibilityOverrideBy", fields: [overriddenById], references: [id])
+
+  @@unique([electionId, memberId])
+}
+
+model ElectionNomination {
+  id String @id @default(uuid())
+
+  electionId String
+  positionId String
+  memberId   String
+
+  // ── Optimistic concurrency (B19) ─────────────────────────────────────────
+  version Int @default(0)
+
+  statement      String? @db.Text
+  manifesto      String? @db.Text
+  experience     String? @db.Text
+  supportingInfo String? @db.Text
+
+  photoUrl String?
+
+  status NominationStatus @default(DRAFT)
+
+  submittedAt DateTime?
+  reviewedAt  DateTime?
+
+  reviewedById    String?
+  reviewedBy      User?   @relation("NominationReviewedBy", fields: [reviewedById], references: [id])
+  rejectionReason String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  election Election         @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  position ElectionPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  member   Member           @relation("ElectionNominationMember", fields: [memberId], references: [id])
+
+  @@unique([electionId, positionId, memberId])
+  @@index([electionId, status])
+  @@index([memberId])
+}
+
+model ElectionCandidate {
+  id String @id @default(uuid())
+
+  electionId String
+  positionId String
+  memberId   String
+
+  candidateNumber String?
+  photoUrl        String?
+
+  status CandidateStatus @default(PENDING)
+
+  approvedAt   DateTime?
+  approvedById String?
+  approvedBy   User?     @relation("CandidateApprovedBy", fields: [approvedById], references: [id])
+
+  disqualifiedAt         DateTime?
+  disqualifiedById       String?
+  disqualifiedBy         User?     @relation("CandidateDisqualifiedBy", fields: [disqualifiedById], references: [id])
+  disqualificationReason String?   @db.Text
+
+  electedAt      DateTime?
+  electionMethod String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  election Election         @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  position ElectionPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  member   Member           @relation("ElectionCandidateMember", fields: [memberId], references: [id])
+
+  @@unique([electionId, positionId, memberId])
+  @@index([electionId, positionId, status])
+  @@index([memberId])
+}
+
+// Encrypted ballot payload. Selections are NEVER stored in a queryable table.
+// The decrypted structure (in-memory only during counting):
+//   { selections: [{ positionId, candidateId | "NOTA" }, ...] }
+model ElectionBallot {
+  id String @id @default(uuid())
+
+  electionId      String
+  ballotReference String @unique
+
+  // ── Voter identity (B24) ────────────────────────────────────────────────
+  // Nullable for backward compatibility with pre-existing rows; new ballots
+  // MUST set memberId so the unique constraint below can enforce one-vote-per-
+  // member. NULL values are excluded from the unique index by Postgres, so the
+  // constraint only fires once memberId is populated.
+  memberId String?
+  member   Member? @relation("ElectionBallotMember", fields: [memberId], references: [id], onDelete: Cascade)
+
+  encryptedData String @db.Text
+  dataHash      String
+  keyId         String
+
+  status        VoteStatus @default(VALID)
+  invalidReason String?
+
+  castAt        DateTime @default(now())
+  clientIpHash  String?
+  userAgentHash String?
+
+  election   Election          @relation(fields: [electionId], references: [id], onDelete: Restrict)
+  selections BallotSelection[]
+
+  // Prevents double-voting: at most one ballot per member per election (B24).
+  @@unique([electionId, memberId])
+  @@index([electionId, castAt])
+  @@index([dataHash])
+  @@index([status])
+}
+
+// Relational-mode selection table (used only when ballotStorageMode = RELATIONAL).
+// In ENCRYPTED mode (default), selections live inside ElectionBallot.encryptedData.
+model BallotSelection {
+  id String @id @default(uuid())
+
+  ballotId    String
+  positionId  String
+  candidateId String // "NOTA" sentinel for NOTA selections
+
+  ballot ElectionBallot @relation(fields: [ballotId], references: [id], onDelete: Restrict)
+
+  @@unique([ballotId, positionId, candidateId])
+  @@index([positionId, candidateId])
+}
+
+model BallotKeyRotation {
+  id            String    @id @default(uuid())
+  electionId    String
+  keyId         String    @unique
+  activatedAt   DateTime  @default(now())
+  activatedById String
+  deactivatedAt DateTime?
+
+  election    Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  activatedBy User     @relation("BallotKeyActivatedBy", fields: [activatedById], references: [id])
+
+  @@index([electionId, activatedAt])
+}
+
+model ElectionParticipation {
+  id String @id @default(uuid())
+
+  electionId String
+  memberId   String
+
+  voted   Boolean   @default(false)
+  votedAt DateTime?
+
+  participationHash String?
+
+  election Election @relation(fields: [electionId], references: [id], onDelete: Restrict)
+  member   Member   @relation("ElectionParticipationMember", fields: [memberId], references: [id])
+
+  @@unique([electionId, memberId])
+  @@index([electionId, voted])
+}
+
+model ElectionResult {
+  id String @id @default(uuid())
+
+  electionId  String
+  positionId  String
+  candidateId String?
+
+  label          String
+  voteCount      Int
+  votePercentage Decimal? @db.Decimal(5, 2)
+
+  rank           Int?
+  elected        Boolean @default(false)
+  electionMethod String?
+
+  publishedAt   DateTime?
+  publishedById String?
+
+  election Election         @relation(fields: [electionId], references: [id], onDelete: Restrict)
+  position ElectionPosition @relation(fields: [positionId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@unique([electionId, positionId, candidateId])
+  @@index([electionId, positionId, elected])
+  @@index([electionId, positionId, rank])
+}
+
+model RecountRequest {
+  id            String    @id @default(uuid())
+  electionId    String
+  requestedById String
+  reason        String    @db.Text
+  status        String    @default("PENDING")
+  recountResult Json?
+  resultHash    String?
+  requestedAt   DateTime  @default(now())
+  resolvedAt    DateTime?
+
+  election    Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  requestedBy User     @relation("RecountRequestedBy", fields: [requestedById], references: [id])
+
+  @@index([electionId, status])
+}
+
+// ── Executive Committee (renamed from spec's "Committee" — see worklog §M1) ──
+
+model ElectionCommittee {
+  id String @id @default(uuid())
+
+  electionId String?
+  name       String
+
+  termStartDate DateTime
+  termEndDate   DateTime
+
+  status String @default("ACTIVE")
+
+  createdAt DateTime @default(now())
+
+  election Election? @relation(fields: [electionId], references: [id], onDelete: SetNull)
+
+  members   ElectionCommitteeMember[]
+  vacancies ElectionCommitteeVacancy[]
+
+  @@index([termStartDate, termEndDate])
+  @@index([status])
+}
+
+model ElectionCommitteeMember {
+  id String @id @default(uuid())
+
+  committeeId  String
+  memberId     String
+  positionName String
+
+  startDate DateTime
+  endDate   DateTime?
+
+  active         Boolean @default(true)
+  electionMethod String?
+
+  // Short bio shown on the landing page "Our Management Committee" section.
+  // Populated from the SiteContent.management JSON when the admin edits it
+  // via the Landing Page Content page; can also be set inline here.
+  shortBio String? @db.Text
+
+  // Display order on the landing page (lower = earlier).
+  displayOrder Int @default(0)
+
+  committee ElectionCommittee @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+  member    Member            @relation("ElectionCommitteeMemberMember", fields: [memberId], references: [id])
+
+  @@index([committeeId])
+  @@index([memberId])
+  @@index([active])
+}
+
+model ElectionCommitteeVacancy {
+  id           String   @id @default(uuid())
+  committeeId  String
+  positionName String
+  vacatedById  String
+  vacatedAt    DateTime @default(now())
+  reason       String   @db.Text
+
+  filledById String?
+  filledAt   DateTime?
+  fillMethod String?
+
+  committee ElectionCommittee @relation(fields: [committeeId], references: [id])
+  vacatedBy Member            @relation("CommitteeVacancyVacatedBy", fields: [vacatedById], references: [id])
+  filledBy  Member?           @relation("CommitteeVacancyFilledBy", fields: [filledById], references: [id])
+
+  @@index([committeeId])
+  @@index([fillMethod])
+}
+
+// ── Audit + Observers + Scheduling ───────────────────────────────────────────
+
+model ElectionAuditLog {
+  id String @id @default(uuid())
+
+  electionId String
+
+  action ElectionAuditAction
+
+  performedById   String?
+  performedByRole String?
+
+  metadata Json?
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+
+  @@index([electionId, createdAt])
+  @@index([action])
+}
+
+model ElectionObserverAssignment {
+  id           String    @id @default(uuid())
+  electionId   String
+  userId       String
+  assignedAt   DateTime  @default(now())
+  expiresAt    DateTime
+  assignedById String
+  revokedAt    DateTime?
+
+  election   Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  user       User     @relation("ElectionObserverUser", fields: [userId], references: [id])
+  assignedBy User     @relation("ElectionObserverAssignedBy", fields: [assignedById], references: [id])
+
+  @@unique([electionId, userId])
+  @@index([electionId, expiresAt])
+}
+
+model ElectionScheduledEvent {
+  id          String    @id @default(uuid())
+  electionId  String
+  eventType   String
+  scheduledAt DateTime
+  executedAt  DateTime?
+  status      String    @default("PENDING")
+  metadata    Json?
+
+  election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+
+  @@index([electionId, status])
+  @@index([scheduledAt, status])
+}
+
+model ElectionNotification {
+  id String @id @default(uuid())
+
+  electionId String
+  type       ElectionNotificationType
+  channel    String
+
+  title   String
+  message String @db.Text
+
+  scheduledAt DateTime?
+  sentAt      DateTime?
+
+  election   Election                        @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  recipients ElectionNotificationRecipient[]
+
+  createdAt DateTime @default(now())
+
+  @@index([electionId, type])
+  @@index([scheduledAt])
+}
+
+model ElectionNotificationRecipient {
+  id String @id @default(uuid())
+
+  notificationId String
+  memberId       String
+
+  deliveredAt DateTime?
+  readAt      DateTime?
+
+  notification ElectionNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  member       Member               @relation("ElectionNotificationRecipientMember", fields: [memberId], references: [id])
+
+  @@unique([notificationId, memberId])
+  @@index([memberId, readAt])
+}
+
+model ElectionSettingsSnapshot {
+  id           String   @id @default(uuid())
+  electionId   String
+  settingsJson Json
+  capturedAt   DateTime @default(now())
+  capturedById String
+
+  election   Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  capturedBy User     @relation("ElectionSettingsCapturedBy", fields: [capturedById], references: [id])
+
+  @@index([electionId, capturedAt])
+}
+
+model ElectionIdempotencyKey {
+  id           String   @id @default(uuid())
+  key          String   @unique
+  electionId   String
+  memberId     String?
+  requestHash  String
+  responseJson Json?
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+
+  @@index([electionId, memberId])
+  @@index([expiresAt])
+}
+
+// ── Back-relations on existing Member + User models ──────────────────────────
+// (declared here so the existing models don't need to be edited inline; Prisma
+//  merges relation fields from across the schema file automatically)
+
+// ============================================================================
+// FINANCIAL YEAR MODULE (Roadmap item 24)
+//
+// Tracks the somiti's fiscal calendar (e.g. "FY 2026", Jul 1 → Jun 30) so
+// journal entries can be tagged with the year they were posted in, and the
+// trial-balance / P&L / balance-sheet reports can filter to a specific year.
+//
+// Closing flow (status transitions):
+//   OPEN  → CLOSING  → CLOSED
+// At CLOSING, the system blocks new entries to the year (defensive); at
+// CLOSED, the year is fully locked and no further edits are allowed.
+// ============================================================================
+
+model FinancialYear {
+  id         String    @id @default(cuid())
+  name       String // e.g. "FY 2026"
+  startDate  DateTime  @db.Date
+  endDate    DateTime  @db.Date
+  status     String    @default("OPEN") // OPEN | CLOSING | CLOSED
+  closedById String?
+  closedBy   User?     @relation("FinancialYearClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
+  closedAt   DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Journal entries posted in this financial year.
+  journalEntries JournalEntry[]
+
+  // Two years can never share the same start date (prevents accidental
+  // overlap of two OPEN rows).
+  @@unique([startDate])
+  @@index([status])
+}
+
+// ============================================================================
+// TERM-DEPOSIT PRODUCT MODULE (Roadmap item 22)
+//
+// Defines recurring deposit products: fixed-term member deposits that earn a
+// pre-agreed profit rate, with profit either credited at maturity or
+// auto-reinvested. Distinct from ad-hoc Savings deposits (which are liquid).
+//
+// DepositProduct = the rate sheet / template (admin-configurable).
+// MemberDeposit  = a single member's principal under a product, with maturity
+//                  tracking and a back-reference to the principal Transaction.
+// ============================================================================
+
+model DepositProduct {
+  id                 String   @id @default(cuid())
+  name               String
+  code               String   @unique
+  termMonths         Int
+  minAmount          Decimal  @db.Decimal(14, 2)
+  maxAmount          Decimal? @db.Decimal(14, 2)
+  // Annual profit rate, e.g. 0.0800 = 8% per annum.
+  profitRate         Decimal  @db.Decimal(5, 4)
+  // Portion of the profit credited to the member (0–1). The remainder stays in
+  // the somiti's pooled fund as service charge / overhead.
+  profitSharingRatio Decimal  @default(0) @db.Decimal(5, 4)
+  // What happens at maturity:
+  //   REINVEST — principal + profit rolled into a new MemberDeposit (same product).
+  //   WITHDRAW — principal + profit credited to the member's Savings account.
+  //   RENEW    — principal rolled over, profit withdrawn.
+  maturityBehavior   String   @default("REINVEST") // REINVEST | WITHDRAW | RENEW
+  status             String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  deposits MemberDeposit[]
+
+  @@index([status])
+}
+
+model MemberDeposit {
+  id              String   @id @default(cuid())
+  memberId        String
+  productId       String
+  principalAmount Decimal  @db.Decimal(14, 2)
+  startDate       DateTime @db.Date
+  maturityDate    DateTime @db.Date
+  expectedProfit  Decimal  @db.Decimal(14, 2)
+  status          String   @default("ACTIVE") // ACTIVE | MATURED | WITHDRAWN | RENEWED
+  // Linked Transaction.id for the principal deposit (the cash-in leg).
+  // @unique enforces 1:1 — one Transaction funds at most one MemberDeposit.
+  transactionId   String?  @unique
+
+  member      Member         @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  product     DepositProduct @relation(fields: [productId], references: [id])
+  transaction Transaction?   @relation(fields: [transactionId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([memberId, status])
+  @@index([productId])
+}
+
+// ============================================================================
+// MESSAGE DELIVERY LOG (Roadmap item 19)
+//
+// Persistent outbox for SMS / Email messages dispatched through the MailSettings
+// / SmsSettings providers. Backs the retry-with-back-off worker: failed rows
+// are retried up to maxAttempts times, with nextRetryAt scheduling the next
+// attempt. The relatedType/relatedId pair is a polymorphic link back to the
+// triggering record (TRANSACTION / LOAN / ELECTION / etc.) so the audit UI can
+// surface "messages sent for this entity".
+// ============================================================================
+
+model MessageDeliveryLog {
+  id              String    @id @default(cuid())
+  channel         String // SMS | EMAIL
+  recipient       String // phone or email
+  body            String    @db.Text
+  status          String    @default("PENDING") // PENDING | SENT | FAILED | RETRYING
+  gatewayResponse String?   @db.Text
+  attemptCount    Int       @default(0)
+  maxAttempts     Int       @default(3)
+  nextRetryAt     DateTime?
+  lastError       String?   @db.Text
+  // Polymorphic back-link to the triggering record (TRANSACTION | LOAN |
+  // ELECTION | etc.). relatedId is the entity's id; relatedType is its
+  // table-name for the audit UI's "view source" drill-down.
+  relatedType     String?
+  relatedId       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status, nextRetryAt])
+  @@index([recipient, createdAt])
+}
+
+// ============================================================================
+// ACCOUNT BALANCE HISTORY (D8)
+//
+// Append-only audit trail of every Account.currentBalance mutation. Written in
+// the same $transaction as the JournalEntry post so the history can never
+// drift from the live balance. Drives the Account Ledger "running balance"
+// view without having to replay every JournalLine from the beginning of time.
+// ============================================================================
+
+model AccountBalanceHistory {
+  id             String  @id @default(cuid())
+  accountId      String
+  beforeBalance  Decimal @db.Decimal(16, 2)
+  afterBalance   Decimal @db.Decimal(16, 2)
+  delta          Decimal @db.Decimal(16, 2) // signed: + debit-normal, - credit-normal
+  journalEntryId String?
+
+  account      Account       @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([accountId, createdAt])
+}
+
+// ============================================================================
+// PAYMENT INTENT (Roadmap item 21 — bKash / Nagad gateway integration)
+//
+// Tracks an in-flight payment initiated through an external gateway
+// (bKash tokenized checkout or Nagad encrypted checkout). One row per
+// attempt: created in PENDING when the member clicks "Pay with bKash" /
+// "Pay with Nagad", moved to COMPLETED when the gateway callback confirms
+// the money landed (and a Transaction + GL entry are posted), or FAILED /
+// CANCELLED when the gateway reports the user abandoned or the payment was
+// rejected.
+//
+// `providerPaymentId` holds the gateway's id (bKash paymentID or Nagad
+// paymentRefId) so the callback can re-resolve the row even if the merchant
+// invoice number wasn't echoed back. `merchantInvoice` is OUR id, unique,
+// used as the human-readable reference on receipts and the journal narration.
+//
+// Once a Transaction is posted (COMPLETED), `transactionId` links back to it
+// so the gateway dashboard can drill from "bkash paymentID abc123" straight
+// to the GL voucher.
+// ============================================================================
+
+model PaymentIntent {
+  id                String  @id @default(cuid())
+  provider          String // BKASH | NAGAD
+  providerPaymentId String? // paymentID (bKash) or paymentRefId (Nagad)
+  merchantInvoice   String  @unique
+  amount            Decimal @db.Decimal(14, 2)
+  memberId          String
+  status            String  @default("PENDING") // PENDING | COMPLETED | FAILED | CANCELLED
+  transactionId     String? // linked Transaction.id once GL posted
+  metadata          Json?
+
+  member      Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  transaction Transaction? @relation(fields: [transactionId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([memberId, status])
+  @@index([providerPaymentId])
+}

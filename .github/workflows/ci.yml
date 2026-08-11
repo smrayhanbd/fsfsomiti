@@ -1,0 +1,64 @@
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+# Cancel any in-flight run on the same ref when a new commit lands — saves
+# runner minutes (and avoids the "older build overwrites newer" race).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # Clean install based on lockfile — never updates package-lock.
+      - run: npm ci
+
+      # Prisma client must be generated BEFORE tsc/build — the TypeScript
+      # compiler imports types from `@prisma/client` which only exist after
+      # `prisma generate` has run.
+      - run: npx prisma generate
+
+      # Verify the migration history is in sync with the schema. Fails the
+      # job when migrations have drifted (e.g. someone edited schema.prisma
+      # without creating a migration). Requires DIRECT_URL because the
+      # migrations table lives on the direct (non-pooled) connection.
+      - run: npx prisma migrate status
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+
+      # Type-check the whole project WITHOUT emitting. This catches the kind
+      # of drift `ignoreBuildErrors: true` used to mask (see next.config.ts).
+      - run: npx tsc --noEmit
+
+      # ESLint — Next.js' default config + project rules.
+      - run: npm run lint
+
+      # Full production build. The env vars match what Vercel will set at
+      # deploy time — `next build` reads them at config-eval time to make
+      # decisions (e.g. Sentry wrapping). The CI secrets are placeholders
+      # so the build never blocks on missing values.
+      - run: npm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          NEXTAUTH_SECRET: ci-test-secret-not-real
+          NEXTAUTH_URL: http://localhost:3000
+          ENCRYPTION_KEY: ci-test-key-not-real-base64==
+
+      # `if: always()` so we still get the test report when an earlier step
+      # fails — useful for diagnosing "did the build break AND tests fail?"
+      - run: npm test
+        if: always()
