@@ -150,7 +150,7 @@ export default async function PublicMemberPage({ params }: { params: Promise<{ i
             {/* Verification note */}
             <div className="pt-2 border-t border-slate-100 dark:border-slate-700">
               <p className="text-[11px] text-slate-400 text-center">
-                This is a verified member of {org.name}. Scanned via QR code on the member ID card.
+                This person is a verified member of {org.name}. Scanned via QR code on the member ID card.
               </p>
             </div>
           </div>

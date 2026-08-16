@@ -1,7 +1,7 @@
 // Deep-import the CommonJS entry (pdfkit/js/pdfkit.js) so Turbopack doesn't
 // trip on the ESM build's fontkit transitive deps. See lib/pdf/memberFormPdf.ts
 // for the full rationale. The constructor is imported untyped and cast.
- 
+
 // @ts-expect-error — no type declarations for the deep CJS path.
 import PDFDocumentConstructor from "pdfkit/js/pdfkit.js"
 import QRCode from "qrcode"
@@ -17,9 +17,9 @@ const PDFDocument = PDFDocumentConstructor as unknown as new (
  * Server-side Membership ID Card PDF generator.
  *
  * Produces a credit-card-sized (CR80 → 3.375" × 2.125" landscape = 243×153pt)
- * printable ID card with the member's photo, identity fields, KYC badge,
- * organization branding, a QR code that opens the member's public profile,
- * and an issue/expiry date pair.
+ * printable ID card with the member's photo, identity fields, organization
+ * branding (logo + name + tagline), a QR code that opens the member's public
+ * profile, and an issue/expiry date pair.
  *
  * Pure drawing — takes a payload, returns a Buffer. No DB or network access,
  * so it is cheap to call and easy to reason about. Server-only (pdfkit + QR
@@ -61,6 +61,12 @@ export interface MemberIdCardInput {
   org: OrgInfo
   /** Optional pre-fetched member photo buffer (PNG/JPEG). */
   photoBuffer?: Buffer | null
+  /** Optional pre-fetched organization logo buffer (PNG/JPEG). Drawn top-left
+   *  of the header, ahead of the org name. Same "pure drawing" contract as
+   *  `photoBuffer` — fetch it wherever the caller already resolves
+   *  `org`/`photoUrl` and pass the bytes in. Falls back to a text-only
+   *  header when omitted. */
+  logoBuffer?: Buffer | null
   /** Public base URL of the site (e.g. https://example.com) — the QR code links to `${publicBaseUrl}/portal/profile/[id]`. */
   publicBaseUrl?: string | null
   /** Issue date — defaults to today. */
@@ -78,6 +84,31 @@ function fmtDate(d: Date | string | null | undefined): string {
     month: "short",
     year: "numeric",
   })
+}
+
+/**
+ * Shrink `fontSize` (in 0.5pt steps; the target font must already be set on
+ * `doc`) until `text` fits `maxWidth` on a single line, down to `minSize`.
+ * Leaves `doc`'s font size set to whatever size it settles on.
+ *
+ * This alone doesn't guarantee a single line for pathological input — callers
+ * should still pass a bounded `height` + `ellipsis: true` to the actual
+ * `.text()` call as a fallback, and measure with `heightOfString` using those
+ * same options before positioning whatever comes next.
+ */
+function fitFontSizeToWidth(
+  doc: PDFDocument,
+  text: string,
+  maxWidth: number,
+  startSize: number,
+  minSize: number
+): number {
+  for (let size = startSize; size > minSize; size -= 0.5) {
+    doc.fontSize(size)
+    if (doc.widthOfString(text) <= maxWidth) return size
+  }
+  doc.fontSize(minSize)
+  return minSize
 }
 
 /**
@@ -135,34 +166,60 @@ export async function generateMemberIdCardPdf(input: MemberIdCardInput): Promise
       doc.rect(cardX, cardY + 24, CARD_W, 12).fill(NAVY)
       doc.rect(cardX, cardY + 36, CARD_W, 2).fill(GREEN)
 
-      // Org name (top-left), KYC badge (top-right) inside the header.
+      // Card-type label (top-right) — replaces the old KYC pill, so the
+      // header always makes clear what this document is at a glance.
+      const labelW = 62
+      const labelX = cardX + CARD_W - labelW - 8
       doc
-        .fillColor("#ffffff")
+        .fillColor(GOLD)
         .font("Helvetica-Bold")
-        .fontSize(10)
-        .text(input.org.name.toUpperCase(), cardX + 10, cardY + 8, { width: CARD_W - 110 })
+        .fontSize(7.5)
+        .text("MEMBERSHIP", labelX, cardY + 8, { width: labelW, align: "right", lineBreak: false })
+      doc.text("ID CARD", labelX, cardY + 17, { width: labelW, align: "right", lineBreak: false })
+
+      // Organization logo (top-left) — small white plate behind it so logos
+      // with transparent backgrounds or dark ink still read clearly on navy.
+      const logoSize = 26
+      const logoX = cardX + 8
+      const logoY = cardY + 6
+      let headerTextX = cardX + 10 // fallback start-X if no logo is provided
+      if (input.logoBuffer) {
+        doc.roundedRect(logoX, logoY, logoSize, logoSize, 4).fill("#ffffff")
+        try {
+          doc.image(input.logoBuffer, logoX + 2, logoY + 2, {
+            fit: [logoSize - 4, logoSize - 4],
+            align: "center",
+            valign: "center",
+          })
+        } catch (e) {
+          console.error("[memberIdCardPdf] logo draw failed:", e)
+        }
+        headerTextX = logoX + logoSize + 8
+      }
+
+      // Org name + tagline. Font size shrinks to fit one line where
+      // possible; either way the tagline is positioned from the *measured*
+      // height of the name (however many lines it actually took), so the
+      // two can never land on top of each other.
+      const headerTextW = labelX - headerTextX - 6
+      const orgName = input.org.name.toUpperCase()
+      doc.font("Helvetica-Bold")
+      fitFontSizeToWidth(doc, orgName, headerTextW, 10, 7)
+      const orgLineH = doc.currentLineHeight()
+      const orgNameOpts = { width: headerTextW, height: orgLineH * 2, ellipsis: true }
+      const orgNameH = doc.heightOfString(orgName, orgNameOpts)
+      doc.fillColor("#ffffff").text(orgName, headerTextX, cardY + 8, orgNameOpts)
       if (input.org.tagline) {
         doc
           .fillColor("#c7d2fe")
           .font("Helvetica-Oblique")
           .fontSize(6)
-          .text(input.org.tagline, cardX + 10, cardY + 22, { width: CARD_W - 110 })
+          .text(input.org.tagline, headerTextX, cardY + 8 + orgNameH + 1, {
+            width: headerTextW,
+            lineBreak: false,
+            ellipsis: true,
+          })
       }
-
-      // KYC badge — a small pill in the header right.
-      const badgeX = cardX + CARD_W - 64
-      const badgeY = cardY + 10
-      const badgeW = 54
-      const badgeH = 16
-      doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 8).fill(input.member.kycVerified ? GREEN : "#9ca3af")
-      doc
-        .fillColor("#ffffff")
-        .font("Helvetica-Bold")
-        .fontSize(7)
-        .text(input.member.kycVerified ? "KYC VERIFIED" : "KYC PENDING", badgeX, badgeY + 4.5, {
-          width: badgeW,
-          align: "center",
-        })
 
       // ── Body ────────────────────────────────────────────────────────────────
       const bodyY = cardY + 44
@@ -181,13 +238,31 @@ export async function generateMemberIdCardPdf(input: MemberIdCardInput): Promise
         .lineWidth(0.8)
         .stroke()
       if (input.photoBuffer) {
+        // `cover` scales the image to fill the box completely (cropping
+        // instead of letterboxing) — but pdfkit does NOT clip the overflow
+        // on its own, so we clip to a rounded rect ourselves. That also
+        // gives the photo the same rounded corners as its frame. The clip
+        // is opened before the try and always closed in `finally`, so a
+        // bad photo buffer can't leave the rest of the card clipped.
+        const innerX = photoX + 2
+        const innerY = photoY + 2
+        const innerSize = PHOTO_SIZE - 4
+        let drewPhoto = false
+        doc.save()
         try {
-          doc.image(input.photoBuffer, photoX + 2, photoY + 2, {
-            fit: [PHOTO_SIZE - 4, PHOTO_SIZE - 4],
+          doc.roundedRect(innerX, innerY, innerSize, innerSize, 4).clip()
+          doc.image(input.photoBuffer, innerX, innerY, {
+            cover: [innerSize, innerSize],
             align: "center",
             valign: "center",
           })
-        } catch {
+          drewPhoto = true
+        } catch (e) {
+          console.error("[memberIdCardPdf] photo draw failed:", e)
+        } finally {
+          doc.restore()
+        }
+        if (!drewPhoto) {
           drawPhotoPlaceholder(doc, photoX, photoY, PHOTO_SIZE)
         }
       } else {
@@ -199,20 +274,22 @@ export async function generateMemberIdCardPdf(input: MemberIdCardInput): Promise
       const textW = CARD_W - (PHOTO_SIZE + 18) - 10 // leave 10pt right padding
       let ty = bodyY + 6
 
-      // Member name (bold, larger).
-      doc
-        .fillColor(NAVY)
-        .font("Helvetica-Bold")
-        .fontSize(13)
-        .text(input.member.fullName, textX, ty, { width: textW, lineBreak: true })
-      ty += 16
+      // Member name — same shrink-to-fit + measured-height approach as the
+      // org name, so "No: ..." can never overlap a wrapped second line.
+      doc.font("Helvetica-Bold")
+      fitFontSizeToWidth(doc, input.member.fullName, textW, 13, 10)
+      const nameLineH = doc.currentLineHeight()
+      const nameOpts = { width: textW, height: nameLineH * 2, ellipsis: true }
+      const nameH = doc.heightOfString(input.member.fullName, nameOpts)
+      doc.fillColor(NAVY).text(input.member.fullName, textX, ty, nameOpts)
+      ty += nameH + 3
 
       // Member number (mono-ish).
       doc
         .fillColor(INK)
         .font("Helvetica-Bold")
         .fontSize(9)
-        .text(`No: ${input.member.memberNo}`, textX, ty, { width: textW })
+        .text(`No: ${input.member.memberNo}`, textX, ty, { width: textW, lineBreak: false, ellipsis: true })
       ty += 12
 
       // Profession.
@@ -221,7 +298,7 @@ export async function generateMemberIdCardPdf(input: MemberIdCardInput): Promise
           .fillColor(MUTED)
           .font("Helvetica")
           .fontSize(7)
-          .text(input.member.profession, textX, ty, { width: textW })
+          .text(input.member.profession, textX, ty, { width: textW, lineBreak: false, ellipsis: true })
         ty += 10
       }
 
@@ -230,7 +307,7 @@ export async function generateMemberIdCardPdf(input: MemberIdCardInput): Promise
         .fillColor(MUTED)
         .font("Helvetica")
         .fontSize(7)
-        .text(`Ph: ${input.member.phone}`, textX, ty, { width: textW })
+        .text(`Ph: ${input.member.phone}`, textX, ty, { width: textW, lineBreak: false, ellipsis: true })
 
       // ── QR code (bottom-right of body) ────────────────────────────────────
       const QR_SIZE = 50
