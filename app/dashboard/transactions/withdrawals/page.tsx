@@ -2,6 +2,7 @@ import { LoanStatus } from "@prisma/client"
 import prisma from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { getCurrentUser } from "@/lib/permissions"
+import { guardDashboardPage } from "@/lib/page-guard"
 import {
   getDefaultCoasForAllGroups,
   missingGroups,
@@ -14,6 +15,11 @@ export const dynamic = "force-dynamic"
 const ACTIVE_LOAN_STATUSES: LoanStatus[] = ["DISBURSED", "DEFAULTED"]
 
 export default async function WithdrawalTransactionsPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Transactions", "Withdrawal Entry")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
 

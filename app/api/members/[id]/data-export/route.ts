@@ -287,7 +287,7 @@ export async function GET(
       },
     })
   } catch (err) {
-    // eslint-disable-next-line no-console
+     
     console.error("[/api/members/[id]/data-export] failed:", err)
     return NextResponse.json(
       { error: "Failed to export member data." },

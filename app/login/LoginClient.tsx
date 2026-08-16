@@ -53,7 +53,7 @@ export default function LoginClient({ org }: { org: OrgInfo }) {
       // If the rate-limit check itself errors (e.g. Redis hiccup), don't
       // block the login attempt — the server-side check still applies.
       // Just log and continue.
-      // eslint-disable-next-line no-console
+       
       console.warn("[login] rate-limit pre-check failed; continuing to auth")
     }
 

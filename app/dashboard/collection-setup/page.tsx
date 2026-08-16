@@ -13,10 +13,16 @@ import CollectionTypeManager from "./CollectionTypeManager"
 import ChargeTypeCreateForm from "./ChargeTypeCreateForm"
 import ChargeTypeConfigManager from "./ChargeTypeConfigManager"
 import { History, PlusCircle, Tag, Trash2 } from "lucide-react"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = 'force-dynamic'
 
 export default async function CollectionSetupPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Transactions", "Fees & Charge Setup")
+
+
   // 1. Fetch Setups, Charge Types, and Active Members
   const setups = await prisma.feeSetup.findMany({
     orderBy: { effectiveDate: "desc" },

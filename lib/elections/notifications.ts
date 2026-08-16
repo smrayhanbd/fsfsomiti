@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 // ============================================================================
 // Election notifications — bridges to the existing notification system.
 // ============================================================================

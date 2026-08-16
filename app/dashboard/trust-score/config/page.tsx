@@ -3,10 +3,16 @@ import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import KpiConfigForm from "./KpiConfigForm"
 import { getKpiConfig } from "@/lib/trustScore"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
 export default async function KpiConfigPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Member Management", "Score Settings")
+
+
   const config = await getKpiConfig(true)
 
   return (

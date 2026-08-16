@@ -4,6 +4,7 @@ import TaskForm, { type SelectOption } from "@/components/tasks/TaskForm"
 import { ArrowLeft, PlusCircle } from "lucide-react"
 import { getCurrentUser, hasPermission, isSuperAdmin, PERMISSIONS } from "@/lib/permissions"
 import prisma from "@/lib/prisma"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -12,6 +13,11 @@ export default async function NewTaskPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Operations & Management", "All Tasks")
+
+
   // Permission gate — must hold TASK_CREATE (or be SUPER_ADMIN).
   const user = await getCurrentUser()
   if (!user || !(isSuperAdmin(user) || (await hasPermission(user.id, PERMISSIONS.TASK_CREATE, user)))) {

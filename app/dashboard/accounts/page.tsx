@@ -1,9 +1,15 @@
 import prisma from "@/lib/prisma"
 import ChartOfAccountsClient from "./ChartOfAccountsClient"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = 'force-dynamic'
 
 export default async function ChartOfAccountsPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Finance & Accounting", "Chart of Accounts")
+
+
   // Fetch all root accounts (no parent) and include their children recursively.
   // We deliberately type-order so the tree reads in the conventional order
   // (Assets → Liabilities → Equity → Income → Expense).

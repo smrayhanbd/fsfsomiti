@@ -1,7 +1,7 @@
 // Deep-import the CommonJS entry (pdfkit/js/pdfkit.js) so Turbopack doesn't
 // trip on the ESM build's fontkit transitive deps. See lib/pdf/memberFormPdf.ts
 // for the full rationale. The constructor is imported untyped and cast.
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+ 
 // @ts-expect-error — no type declarations for the deep CJS path.
 import PDFDocumentConstructor from "pdfkit/js/pdfkit.js"
 import QRCode from "qrcode"
@@ -85,10 +85,13 @@ function fmtDate(d: Date | string | null | undefined): string {
  * Returns a Promise<Buffer> that resolves with the full PDF bytes.
  */
 export async function generateMemberIdCardPdf(input: MemberIdCardInput): Promise<Buffer> {
-  // Generate the QR code as a PNG buffer up front. The QR encodes the public
-  // profile URL so a scanner jumps to /portal/profile/[id].
+  // Generate the QR code as a PNG buffer up front. The QR encodes a PUBLIC
+  // member verification URL (/m/[id]) — this page is accessible without
+  // login so anyone scanning the QR (member, admin, or public) can verify
+  // the member's status. Previously pointed to /portal/profile/[id] which
+  // required MEMBER login and redirected everyone else to the landing page.
   const baseUrl = (input.publicBaseUrl || "").replace(/\/+$/, "")
-  const profileUrl = baseUrl ? `${baseUrl}/portal/profile/${input.member.id}` : input.member.id
+  const profileUrl = baseUrl ? `${baseUrl}/m/${input.member.id}` : `/m/${input.member.id}`
   let qrBuffer: Buffer | null = null
   try {
     qrBuffer = await QRCode.toBuffer(profileUrl, {

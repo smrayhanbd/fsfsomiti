@@ -1,10 +1,16 @@
 import prisma from "@/lib/prisma"
 import Link from "next/link"
 import CollectionForm from "./CollectionForm"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = 'force-dynamic'
 
 export default async function CollectionEntryPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Transactions", "Apply Charges")
+
+
   // 1. Fetch Active Members with their savings to calculate real balances
   const dbMembers = await prisma.member.findMany({
     where: { status: "ACTIVE" },

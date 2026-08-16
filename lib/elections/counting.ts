@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 // ============================================================================
 // Vote counting engine — deterministic, repeatable, with tie + quorum handling.
 // ============================================================================

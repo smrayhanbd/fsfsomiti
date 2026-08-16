@@ -67,7 +67,13 @@ interface SiteContentData {
   [key: string]: unknown
 }
 
-export default function SiteContentForm({ content }: { content: SiteContentData }) {
+interface ActiveMember {
+  id: string
+  fullName: string
+  memberNo: string
+}
+
+export default function SiteContentForm({ content, activeMembers = [] }: { content: SiteContentData; activeMembers?: ActiveMember[] }) {
   const [data, setData] = useState<SiteContentData>(content)
 
   const handleChange = (name: string, value: string) => {
@@ -169,9 +175,9 @@ export default function SiteContentForm({ content }: { content: SiteContentData 
             <Label>About Content</Label>
             <RichTextEditor value={data.aboutContent ?? ""} onChange={(val) => handleChange("aboutContent", val)} />
           </div>
-          <div className="space-y-2">
-            <Label>Vision Title</Label>
-            <Input value={data.visionTitle ?? ""} onChange={(e) => handleChange("visionTitle", e.target.value)} />
+          <div className="space-y-2 border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+            <Label>Vision Title <span className="text-xs text-slate-500 font-normal">(shown in the About section&apos;s right column)</span></Label>
+            <Input value={data.visionTitle ?? ""} onChange={(e) => handleChange("visionTitle", e.target.value)} placeholder="Our Vision & Mission" />
           </div>
           <div className="space-y-2">
             <Label>Vision Content</Label>
@@ -274,29 +280,6 @@ export default function SiteContentForm({ content }: { content: SiteContentData 
         </CardContent>
       </Card>
 
-      {/* ─── How It Works ─── */}
-      <Card className="shadow-sm rounded-xl border-slate-200">
-        <CardHeader>
-          <CardTitle>How It Works <span className="text-xs text-slate-500 font-normal">(numbered onboarding steps)</span></CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <p className="text-xs text-slate-500 flex items-start gap-2">
-            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-            Steps render as numbered circles. Recommended: 5 steps (Register → Get Approved → Start Saving → Vote & Withdraw → Grow Together).
-          </p>
-          <SimpleListEditor
-            arrayName="howItWorks"
-            items={data.howItWorks}
-            fields={["step", "title", "description"]}
-            labels={["Step # (e.g. 1)", "Title", "Description"]}
-            onAdd={(f) => addArrayItem("howItWorks", f)}
-            onRemove={(i) => removeArrayItem("howItWorks", i)}
-            onChange={(i, f, v) => handleArrayChange("howItWorks", i, f, v)}
-            itemTitleField="title"
-          />
-        </CardContent>
-      </Card>
-
       {/* ─── Transparency & Policy ─── */}
       <Card className="shadow-sm rounded-xl border-slate-200">
         <CardHeader><CardTitle>Transparency & Policy</CardTitle></CardHeader>
@@ -312,33 +295,21 @@ export default function SiteContentForm({ content }: { content: SiteContentData 
         </CardContent>
       </Card>
 
-      {/* ─── About-section facility cards ─── */}
-      <Card className="shadow-sm rounded-xl border-slate-200">
-        <CardHeader>
-          <CardTitle>About — Highlight Cards <span className="text-xs text-slate-500 font-normal">(right-side cards in About section)</span></CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <p className="text-xs text-slate-500 flex items-start gap-2">
-            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-            Recommended: 4 cards. Examples — Bank-Grade Security, Real-Time Transparency, Democratic Governance, Instant Notifications.
-          </p>
-          <IconPicklistEditor
-            arrayName="facilities"
-            items={data.facilities}
-            fields={["icon", "title", "description"]}
-            labels={["Icon", "Title", "Description"]}
-            onAdd={(f) => addArrayItem("facilities", f)}
-            onRemove={(i) => removeArrayItem("facilities", i)}
-            onChange={(i, f, v) => handleArrayChange("facilities", i, f, v)}
-            itemTitleField="title"
-            richTextFields={["description"]}
-          />
-        </CardContent>
-      </Card>
-
-      {/* ─── Existing dynamic lists ─── */}
+      {/* ─── Management Committee ─── */}
       <CommitteeSyncPanel />
-      <DynamicListEditor title="Management Committee" arrayName="management" items={data.management} fields={["name", "role", "photoUrl", "bio"]} labels={["Name", "Role", "Photo", "Short Bio"]} onAdd={(f) => addArrayItem("management", f)} onRemove={(i) => removeArrayItem("management", i)} onChange={(i, f, v) => handleArrayChange("management", i, f, v)} />
+      <DynamicListEditor
+        title="Management Committee"
+        arrayName="management"
+        items={data.management}
+        fields={["name", "role", "photoUrl", "bio"]}
+        labels={["Member", "Role / Designation", "Photo", "Short Bio"]}
+        onAdd={(f) => addArrayItem("management", f)}
+        onRemove={(i) => removeArrayItem("management", i)}
+        onChange={(i, f, v) => handleArrayChange("management", i, f, v)}
+        dropdownField="name"
+        dropdownOptions={activeMembers.map((m) => ({ value: m.fullName, label: `${m.fullName} (${m.memberNo})` }))}
+        dropdownPlaceholder="Select a member…"
+      />
 
       <DynamicListEditor title="Projects" arrayName="projects" items={data.projects} fields={["title", "status", "photoUrl", "description"]} labels={["Project Title", "Status (e.g. Ongoing)", "Project Photo", "Description"]} onAdd={(f) => addArrayItem("projects", f)} onRemove={(i) => removeArrayItem("projects", i)} onChange={(i, f, v) => handleArrayChange("projects", i, f, v)} />
 
@@ -512,6 +483,11 @@ function IconPicklistEditor({ items = [], fields, labels, onAdd, onRemove, onCha
   )
 }
 
+interface DropdownOption {
+  value: string
+  label: string
+}
+
 interface DynamicListEditorProps {
   title: string
   arrayName: string
@@ -521,10 +497,13 @@ interface DynamicListEditorProps {
   onAdd: (fields: string[]) => void
   onRemove: (index: number) => void
   onChange: (index: number, field: string, value: unknown) => void
+  dropdownField?: string
+  dropdownOptions?: DropdownOption[]
+  dropdownPlaceholder?: string
 }
 
 // Reusable List Editor Component with Accordion and State-Managed Files
-function DynamicListEditor({ title, items = [], fields, labels, onAdd, onRemove, onChange }: DynamicListEditorProps) {
+function DynamicListEditor({ title, items = [], fields, labels, onAdd, onRemove, onChange, dropdownField, dropdownOptions = [], dropdownPlaceholder = "Select…" }: DynamicListEditorProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0)
 
   const handleAdd = () => {
@@ -593,6 +572,17 @@ function DynamicListEditor({ title, items = [], fields, labels, onAdd, onRemove,
                             }}
                           />
                         </div>
+                      ) : field === dropdownField && dropdownOptions.length > 0 ? (
+                        <select
+                          value={(item[field] as string) || ""}
+                          onChange={(e) => onChange(index, field, e.target.value)}
+                          className="w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm"
+                        >
+                          <option value="">{dropdownPlaceholder}</option>
+                          {dropdownOptions.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
                       ) : field === "description" || field === "bio" ? (
                         <RichTextEditor value={(item[field] as string) || ""} onChange={(val) => onChange(index, field, val)} />
                       ) : (

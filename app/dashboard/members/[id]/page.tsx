@@ -9,6 +9,7 @@ import KycToggleButton from "@/components/KycToggleButton"
 import ZoomableImage from "@/components/member/ZoomableImage"
 import { calculateDues } from "@/lib/dueCalculator"
 import { resetMemberCredentials } from "@/app/actions/member"
+import { guardDashboardPage } from "@/lib/page-guard"
 import {
   ArrowLeft, Edit, Printer, User, Phone, Mail, Home, Building,
   Banknote, CreditCard, FileText, Users, Wallet, CalendarDays,
@@ -81,6 +82,11 @@ function AddressBlock({ title, icon: Icon, address }: { title: string, icon: Luc
 }
 
 export default async function MemberProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Member Management", "Member Panel")
+
+
   const { id } = await params
 
   const member = await prisma.member.findUnique({

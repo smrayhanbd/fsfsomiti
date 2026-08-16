@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import Link from "next/link"
 import { calculateDues } from "@/lib/dueCalculator"
 import { buildProfitLoss } from "@/lib/financialStatements"
+import { guardDashboardPage } from "@/lib/page-guard"
 import {
   Users, Wallet, AlertTriangle, Clock, TrendingUp, TrendingDown,
   Landmark, Banknote, HandCoins, Scale, ArrowRight, Gem, Cake,
@@ -36,6 +37,11 @@ function isSameUTCDay(a: Date, b: Date) {
 }
 
 export default async function DashboardPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Overview", "Dashboard")
+
+
   // 1. Fetch Real Data from Database
   const activeMembers = await prisma.member.count({ where: { status: "ACTIVE", deletedAt: null } })
   const pendingApprovals = await prisma.member.count({ where: { status: "PENDING", deletedAt: null } })
@@ -283,9 +289,10 @@ export default async function DashboardPage() {
       />
 
       {/* ─── KPI ribbon ─── */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Total Balance" value={<Money amount={totalBalanceOfSomiti} />} icon={Scale} accent="blue" hint="Across all funds" />
         <StatCard label="Total Deposit" value={<Money amount={membersTotalDeposit} />} icon={Wallet} accent="emerald" trend={depositTrend ?? undefined} />
+        <StatCard label="Total Withdrawal" value={<Money amount={totalPaymentToMembers} />} icon={HandCoins} accent="amber" hint="Paid to members" />
         <StatCard label="Total Due" value={<Money amount={totalDynamicDue} />} icon={AlertTriangle} accent="crimson" />
         <StatCard label="Active Members" value={activeMembers.toLocaleString()} icon={Users} accent="violet" trend={memberTrend ?? undefined} />
         <StatCard label="Pending Approvals" value={pendingApprovals} icon={Clock} accent="amber" />

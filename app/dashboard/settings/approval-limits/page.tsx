@@ -2,10 +2,16 @@ import prisma from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { getCurrentUser, isSuperAdmin } from "@/lib/permissions"
 import ApprovalLimitsForm from "./ApprovalLimitsForm"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
 export default async function ApprovalLimitsPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("System & Settings", "Approval Limits")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
   if (!isSuperAdmin(user)) redirect("/dashboard")

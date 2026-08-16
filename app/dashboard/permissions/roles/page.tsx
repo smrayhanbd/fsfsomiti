@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { getCurrentUser } from "@/lib/permissions"
 import { isSuperAdminUser } from "@/lib/permissions/resolver"
 import RolesManagerClient from "./RolesManagerClient"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -10,6 +11,11 @@ export const dynamic = "force-dynamic"
 // or users holding "manage_permissions" may reach this (the sidebar hides it
 // otherwise; this is the server-side guard).
 export default async function RolesManagerPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("System & Settings", "Role Permissions")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
   const allowed = await isSuperAdminUser(user.id)

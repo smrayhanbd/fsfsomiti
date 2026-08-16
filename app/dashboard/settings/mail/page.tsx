@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { getCurrentUser, isSuperAdmin } from "@/lib/permissions"
 import MailSettingsClient from "./MailSettingsClient"
 import type { MailProvider } from "@/lib/mail/provider-metadata"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -34,6 +35,11 @@ function serializeSettings(s: Awaited<ReturnType<typeof prisma.mailSettings.find
 }
 
 export default async function MailSettingsPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("System & Settings", "Mail Server Setup")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
   if (!isSuperAdmin(user)) redirect("/dashboard")

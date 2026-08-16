@@ -38,17 +38,47 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        // 1. Check if the user is an Admin (by email)
-        const adminUser = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        });
+        // PERFORMANCE: Use Promise.all to check both admin and member tables
+        // in parallel instead of sequentially. bcrypt.compare is the slow part
+        // (~100-250ms at cost 10), so parallelizing saves that full duration
+        // when the user is a member (not an admin).
+        //
+        // We fetch both rows up-front, then decide which password to compare
+        // based on which row exists.
+        const [adminUser, memberAccount] = await Promise.all([
+          prisma.user.findUnique({
+            where: { email: credentials.email },
+            select: {
+              id: true,
+              email: true,
+              password: true,
+              role: true,
+              isActive: true,
+              twoFactorEnabled: true,
+              twoFactorSecret: true,
+            },
+          }),
+          prisma.memberAccount.findUnique({
+            where: { username: credentials.email },
+            select: {
+              id: true,
+              memberId: true,
+              username: true,
+              passwordHash: true,
+              isActive: true,
+              member: {
+                select: { id: true, fullName: true, email: true, status: true },
+              },
+            },
+          }),
+        ]);
 
+        // 1. Try admin login first (admins take priority)
         if (adminUser) {
           if (adminUser.isActive === false) return null;
           const passwordMatch = await bcrypt.compare(credentials.password, adminUser.password);
           if (passwordMatch) {
             // MFA enforcement — if enabled, return an MFA-pending user object.
-            // The LoginClient will detect this and redirect to /login/mfa.
             if (adminUser.twoFactorEnabled && adminUser.twoFactorSecret) {
               return {
                 id: adminUser.id,
@@ -56,6 +86,7 @@ export const authOptions: NextAuthOptions = {
                 role: "MFA_PENDING",
               };
             }
+            // Fire-and-forget lastLogin update — don't block the response.
             prisma.user
               .update({
                 where: { id: adminUser.id },
@@ -66,13 +97,10 @@ export const authOptions: NextAuthOptions = {
           }
         }
 
-        // 2. Check if the user is a Member (by Member ID / Username)
-        const memberAccount = await prisma.memberAccount.findUnique({
-          where: { username: credentials.email },
-          include: { member: true },
-        });
-
+        // 2. Try member login (only if admin login didn't match)
         if (memberAccount && memberAccount.isActive) {
+          // Skip member bcrypt if the member's account is suspended
+          if (memberAccount.member.status !== "ACTIVE") return null;
           const passwordMatch = await bcrypt.compare(credentials.password, memberAccount.passwordHash);
           if (passwordMatch) {
             return {

@@ -31,10 +31,22 @@ const nextConfig: NextConfig = {
   // node_modules at runtime, bypassing the broken SWC helper path entirely.
   serverExternalPackages: ['nodemailer', 'resend', 'pdfkit', 'fontkit'],
 
-  // Enable the standalone build output so the Dockerfile can ship a minimal
-  // image (only the JS actually imported by the app, no full node_modules).
-  // See Dockerfile → "runner" stage.
-  output: 'standalone',
+  // Enable the standalone build output ONLY for Docker builds.
+  //
+  // Why conditional: Next.js 16 made Turbopack the default bundler. The
+  // standalone tracing step looks for `.next/next-server.js.nft.json`
+  // (a webpack-output artifact) — with Turbopack that file doesn't exist,
+  // and the build fails with:
+  //   ENOENT: no such file or directory, open '.next/next-server.js.nft.json'
+  //
+  // Vercel does NOT need `output: 'standalone'` — it has its own file
+  // tracing + serverless bundling pipeline. Only Docker (self-hosted)
+  // needs the standalone server.js bundle.
+  //
+  // The Dockerfile sets `DOCKER_BUILD=1` during the build stage; Vercel
+  // never sets this env var, so on Vercel `output` is `undefined` and
+  // the standalone tracing step is skipped entirely.
+  output: process.env.DOCKER_BUILD === '1' ? 'standalone' : undefined,
 
   // NOTE (phase4-infra / Roadmap item 1): the previous
   //   typescript: { ignoreBuildErrors: true }

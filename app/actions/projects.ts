@@ -11,10 +11,17 @@ import prisma, { directPrisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "@/lib/permissions"
+import { requireAction, authErrorResult } from "@/lib/auth-guard"
 import { postProjectExpense, postProjectRevenue } from "@/lib/portfolio/posting"
 import { nextProjectNo } from "@/lib/portfolio/ids"
 import { resolveAccountId } from "@/lib/portfolio/accounting"
 import { writeAuditLog, type ActionResult } from "@/lib/portfolio/validation"
+
+// Permission scope for this module — used by all server actions in this file.
+const SCOPE = {
+  menuGroup: "Operations & Management",
+  page: "Project Management",
+} as const
 
 const PATHS = [
   "/dashboard/investments",
@@ -86,6 +93,13 @@ export interface ProjectInput {
 export async function saveProject(input: ProjectInput): Promise<ActionResult> {
   const user = await getCurrentUser()
   if (!user) return { ok: false, error: "You must be signed in." }
+
+  // Permission check: create OR edit depending on whether this is a new project.
+  try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, input.id ? "edit_project" : "create_project")
+  } catch (e) {
+    return authErrorResult(e)
+  }
 
   if (!input.name?.trim()) return { ok: false, error: "Project name is required." }
   if (!input.type) return { ok: false, error: "Project type is required." }
@@ -296,6 +310,13 @@ export interface ProjectExpenseInput {
 export async function recordProjectExpense(input: ProjectExpenseInput): Promise<ActionResult> {
   const user = await getCurrentUser()
   if (!user) return { ok: false, error: "You must be signed in." }
+
+  try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "record_expense")
+  } catch (e) {
+    return authErrorResult(e)
+  }
+
   if (!input.expenseDate) return { ok: false, error: "Expense date is required." }
   if (!input.description?.trim()) return { ok: false, error: "Description is required." }
   const amount = Number(input.amount || 0)
@@ -401,6 +422,13 @@ export interface ProjectRevenueInput {
 export async function recordProjectRevenue(input: ProjectRevenueInput): Promise<ActionResult> {
   const user = await getCurrentUser()
   if (!user) return { ok: false, error: "You must be signed in." }
+
+  try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "record_revenue")
+  } catch (e) {
+    return authErrorResult(e)
+  }
+
   if (!input.revenueDate) return { ok: false, error: "Revenue date is required." }
   if (!input.description?.trim()) return { ok: false, error: "Description is required." }
   const gross = Number(input.amount || 0)
@@ -490,6 +518,12 @@ export async function deleteProjectDraft(id: string): Promise<ActionResult> {
   if (!user) return { ok: false, error: "You must be signed in." }
 
   try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "delete_project")
+  } catch (e) {
+    return authErrorResult(e)
+  }
+
+  try {
     const [project, expenseCount, revenueCount] = await Promise.all([
       prisma.project.findUnique({ where: { id }, select: { id: true, name: true, projectNo: true, status: true } }),
       prisma.projectExpense.count({ where: { projectId: id } }),
@@ -531,6 +565,12 @@ export async function linkProjectInvestment(args: {
   if (!user) return { ok: false, error: "You must be signed in." }
 
   try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "edit_project")
+  } catch (e) {
+    return authErrorResult(e)
+  }
+
+  try {
     const link = await prisma.investmentProjectLink.create({
       data: {
         investmentId: args.investmentId,
@@ -565,6 +605,13 @@ export async function linkProjectInvestment(args: {
 export async function unlinkProjectInvestment(linkId: string): Promise<ActionResult> {
   const user = await getCurrentUser()
   if (!user) return { ok: false, error: "You must be signed in." }
+
+  try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "edit_project")
+  } catch (e) {
+    return authErrorResult(e)
+  }
+
   try {
     // Capture the link before deleting so we can record an UNLINK audit entry
     // on the project (the link's owning entity).

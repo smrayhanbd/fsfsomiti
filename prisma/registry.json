@@ -1,0 +1,737 @@
+{
+  "Overview": {
+    "Dashboard": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "export_pdf",
+        "print",
+        "refresh"
+      ]
+    }
+  },
+  "Member Management": {
+    "Member Panel": {
+      "tabs": [
+        "all",
+        "active",
+        "pending",
+        "suspended"
+      ],
+      "actions": [
+        "view",
+        "create_member",
+        "edit_member",
+        "delete_member",
+        "approve_member",
+        "suspend_member",
+        "reinstate_member",
+        "export_pdf",
+        "export_csv",
+        "import",
+        "send_sms",
+        "send_email",
+        "print",
+        "view_detail",
+        "verify_kyc",
+        "reset_credentials",
+        "manage_nominees",
+        "upload_photo",
+        "download_id_card",
+        "print_form"
+      ]
+    },
+    "Pending Approvals": {
+      "tabs": [
+        "member_requests",
+        "profile_requests"
+      ],
+      "actions": [
+        "view",
+        "approve",
+        "reject",
+        "request_more_info",
+        "view_detail",
+        "export_pdf"
+      ]
+    },
+    "Member's Pending Req.": {
+      "tabs": [
+        "profile_requests",
+        "pending"
+      ],
+      "actions": [
+        "view",
+        "approve",
+        "reject",
+        "request_more_info",
+        "view_detail"
+      ]
+    },
+    "Trust Leaderboard": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "export_pdf",
+        "print"
+      ]
+    },
+    "Achievement Badges": {
+      "tabs": [
+        "all",
+        "awarded"
+      ],
+      "actions": [
+        "view",
+        "create_badge",
+        "edit_badge",
+        "delete_badge",
+        "assign_badge",
+        "revoke_badge"
+      ]
+    },
+    "Score Settings": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "edit_config",
+        "reset_scores",
+        "recalculate"
+      ]
+    }
+  },
+  "Transactions": {
+    "Members Due List": {
+      "tabs": [
+        "all",
+        "overdue",
+        "upcoming"
+      ],
+      "actions": [
+        "view",
+        "send_sms",
+        "send_email",
+        "export_pdf",
+        "export_csv",
+        "print",
+        "apply_charge",
+        "view_detail"
+      ]
+    },
+    "Deposit Entry": {
+      "tabs": [
+        "pending",
+        "approved",
+        "reversed"
+      ],
+      "actions": [
+        "view",
+        "create_deposit",
+        "edit_deposit",
+        "delete_deposit",
+        "approve_deposit",
+        "reverse_deposit",
+        "print",
+        "export_pdf",
+        "export_csv",
+        "view_detail",
+        "upload_slip"
+      ]
+    },
+    "Withdrawal Entry": {
+      "tabs": [
+        "pending",
+        "approved",
+        "reversed"
+      ],
+      "actions": [
+        "view",
+        "create_withdrawal",
+        "edit_withdrawal",
+        "delete_withdrawal",
+        "approve_withdrawal",
+        "reverse_withdrawal",
+        "print",
+        "export_pdf",
+        "export_csv",
+        "view_detail"
+      ]
+    },
+    "Distribute Income": {
+      "tabs": [
+        "draft",
+        "posted",
+        "reversed"
+      ],
+      "actions": [
+        "view",
+        "create_distribution",
+        "edit_distribution",
+        "post_distribution",
+        "reverse_distribution",
+        "print",
+        "export_pdf",
+        "view_detail"
+      ]
+    },
+    "Apply Charges": {
+      "tabs": [
+        "pending",
+        "approved",
+        "reversed"
+      ],
+      "actions": [
+        "view",
+        "create_charge",
+        "edit_charge",
+        "delete_charge",
+        "approve_charge",
+        "reverse_charge",
+        "send_sms",
+        "export_pdf",
+        "view_detail"
+      ]
+    },
+    "Admin Submitted": {
+      "tabs": [
+        "pending",
+        "approved",
+        "returned",
+        "rejected"
+      ],
+      "actions": [
+        "view",
+        "approve",
+        "return",
+        "reject",
+        "reverse",
+        "view_detail",
+        "export_pdf"
+      ]
+    },
+    "Member Requests": {
+      "tabs": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "actions": [
+        "view",
+        "approve",
+        "reject",
+        "request_more_info",
+        "view_detail",
+        "export_pdf"
+      ]
+    },
+    "Cash Closing": {
+      "tabs": [
+        "open",
+        "closed"
+      ],
+      "actions": [
+        "view",
+        "open_cash",
+        "close_cash",
+        "adjust",
+        "print",
+        "export_pdf"
+      ]
+    },
+    "Transaction History": {
+      "tabs": [
+        "deposits",
+        "withdrawals",
+        "charges",
+        "distributions"
+      ],
+      "actions": [
+        "view",
+        "export_pdf",
+        "export_csv",
+        "print",
+        "view_detail",
+        "reverse",
+        "filter",
+        "search"
+      ]
+    },
+    "Fees & Charge Setup": {
+      "tabs": [
+        "active",
+        "inactive"
+      ],
+      "actions": [
+        "view",
+        "create_fee",
+        "edit_fee",
+        "delete_fee",
+        "toggle_active",
+        "duplicate_fee"
+      ]
+    }
+  },
+  "Finance & Accounting": {
+    "Loan Management": {
+      "tabs": [
+        "overview",
+        "pending",
+        "active",
+        "closed",
+        "defaulted"
+      ],
+      "actions": [
+        "view",
+        "create_loan",
+        "edit_loan",
+        "delete_loan",
+        "approve_loan",
+        "reject_loan",
+        "disburse_loan",
+        "record_repayment",
+        "write_off",
+        "export_pdf",
+        "export_csv",
+        "print",
+        "send_sms",
+        "send_email",
+        "view_detail",
+        "configure_products",
+        "create_loan_product",
+        "edit_loan_product",
+        "delete_loan_product",
+        "import",
+        "filter",
+        "search"
+      ]
+    },
+    "Chart of Accounts": {
+      "tabs": [
+        "assets",
+        "liabilities",
+        "income",
+        "expense"
+      ],
+      "actions": [
+        "view",
+        "create_account",
+        "edit_account",
+        "delete_account",
+        "toggle_active",
+        "import",
+        "export_pdf",
+        "export_csv"
+      ]
+    },
+    "Voucher Entry": {
+      "tabs": [
+        "journal",
+        "receipt",
+        "payment",
+        "contra"
+      ],
+      "actions": [
+        "view",
+        "create_voucher",
+        "edit_voucher",
+        "delete_voucher",
+        "post_voucher",
+        "print",
+        "export_pdf",
+        "reverse"
+      ]
+    },
+    "Trial Balance": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "export_pdf",
+        "export_csv",
+        "print",
+        "filter"
+      ]
+    },
+    "Balance Sheet": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "export_pdf",
+        "export_csv",
+        "print",
+        "filter"
+      ]
+    },
+    "Profit & Loss": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "export_pdf",
+        "export_csv",
+        "print",
+        "filter"
+      ]
+    },
+    "Account Ledger": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "export_pdf",
+        "export_csv",
+        "print",
+        "filter",
+        "search"
+      ]
+    },
+    "Member Ledger": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "export_pdf",
+        "export_csv",
+        "print",
+        "send_sms",
+        "filter",
+        "search"
+      ]
+    },
+    "Money Receipts": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "print",
+        "export_pdf",
+        "download",
+        "email_receipt"
+      ]
+    },
+    "View Vouchers": {
+      "tabs": [
+        "journal",
+        "receipt",
+        "payment"
+      ],
+      "actions": [
+        "view",
+        "print",
+        "reverse",
+        "export_pdf",
+        "view_detail"
+      ]
+    }
+  },
+  "Operations & Management": {
+    "Meeting Management": {
+      "tabs": [
+        "upcoming",
+        "completed",
+        "cancelled"
+      ],
+      "actions": [
+        "view",
+        "create_meeting",
+        "edit_meeting",
+        "delete_meeting",
+        "mark_attendance",
+        "upload_minutes",
+        "send_sms",
+        "send_email",
+        "export_pdf",
+        "print",
+        "view_detail",
+        "download_minutes"
+      ]
+    },
+    "Project Management": {
+      "tabs": [
+        "planning",
+        "active",
+        "completed"
+      ],
+      "actions": [
+        "view",
+        "create_project",
+        "edit_project",
+        "delete_project",
+        "record_expense",
+        "record_revenue",
+        "export_pdf",
+        "export_csv",
+        "view_detail",
+        "manage_milestones",
+        "manage_cost_centers",
+        "manage_team",
+        "upload_document",
+        "link_investment",
+        "print"
+      ]
+    },
+    "Investment Management": {
+      "tabs": [
+        "active",
+        "exited",
+        "draft"
+      ],
+      "actions": [
+        "view",
+        "create_investment",
+        "edit_investment",
+        "delete_investment",
+        "record_income",
+        "record_exit",
+        "record_valuation",
+        "distribute_income",
+        "export_pdf",
+        "export_csv",
+        "view_detail",
+        "link_project",
+        "upload_document",
+        "print"
+      ]
+    },
+    "All Tasks": {
+      "tabs": [
+        "my_tasks",
+        "all_tasks",
+        "completed",
+        "overdue"
+      ],
+      "actions": [
+        "view",
+        "create_task",
+        "edit_task",
+        "delete_task",
+        "assign_task",
+        "approve_task",
+        "start_task",
+        "complete_task",
+        "log_time",
+        "view_detail",
+        "export_pdf",
+        "print",
+        "manage_recurring",
+        "add_comment",
+        "upload_attachment"
+      ]
+    },
+    "Task Reports": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "export_pdf",
+        "export_csv",
+        "print",
+        "filter"
+      ]
+    },
+    "Committees": {
+      "tabs": [
+        "active",
+        "archived"
+      ],
+      "actions": [
+        "view",
+        "create_committee",
+        "edit_committee",
+        "delete_committee",
+        "assign_member",
+        "remove_member",
+        "view_detail",
+        "export_pdf"
+      ]
+    },
+    "Special Wishes": {
+      "tabs": [
+        "upcoming",
+        "past"
+      ],
+      "actions": [
+        "view",
+        "create_wish",
+        "edit_wish",
+        "delete_wish",
+        "send_sms",
+        "send_email",
+        "export_pdf"
+      ]
+    },
+    "Election Management": {
+      "tabs": [
+        "all",
+        "draft",
+        "nomination",
+        "voting",
+        "results",
+        "archived",
+        "test"
+      ],
+      "actions": [
+        "view",
+        "create_election",
+        "edit_election",
+        "delete_draft_election",
+        "clone_election",
+        "configure_positions",
+        "configure_rules",
+        "open_nomination",
+        "close_nomination",
+        "finalize_candidates",
+        "approve_candidate",
+        "reject_candidate",
+        "disqualify_candidate",
+        "review_candidate",
+        "override_eligibility",
+        "open_voting",
+        "close_voting",
+        "reopen_voting",
+        "count_votes",
+        "publish_result",
+        "publish_partial_result",
+        "form_committee",
+        "manage_vacancy",
+        "create_runoff",
+        "resolve_tie",
+        "recount",
+        "freeze_election",
+        "unfreeze_election",
+        "cancel_election",
+        "manage_test_election",
+        "rotate_keys",
+        "assign_observer",
+        "revoke_observer",
+        "view_audit",
+        "export_pdf",
+        "export_csv",
+        "print",
+        "view_detail",
+        "save_eligibility_config",
+        "preview_eligibility",
+        "sync_committee_to_landing",
+        "save_committee_bios"
+      ]
+    }
+  },
+  "System & Settings": {
+    "User Control": {
+      "tabs": [
+        "users",
+        "roles",
+        "audit"
+      ],
+      "actions": [
+        "view",
+        "create_user",
+        "edit_user",
+        "delete_user",
+        "deactivate_user",
+        "activate_user",
+        "assign_role",
+        "revoke_role",
+        "manage_permissions",
+        "view_audit",
+        "reset_password",
+        "export_pdf",
+        "export_csv",
+        "view_detail"
+      ]
+    },
+    "Role Permissions": {
+      "tabs": [
+        "roles",
+        "matrix"
+      ],
+      "actions": [
+        "view",
+        "create_role",
+        "edit_role",
+        "delete_role",
+        "manage_permissions",
+        "view_audit",
+        "export_pdf",
+        "view_detail",
+        "clone_role"
+      ]
+    },
+    "Organization Info": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "edit",
+        "upload_logo",
+        "manage_contact"
+      ]
+    },
+    "Landing Page Content": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "edit",
+        "upload_image",
+        "manage_seo",
+        "preview",
+        "publish"
+      ]
+    },
+    "Active Bank Accounts": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "create_account",
+        "edit_account",
+        "delete_account",
+        "set_default",
+        "toggle_active"
+      ]
+    },
+    "Mail Server Setup": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "edit",
+        "test_connection",
+        "send_test"
+      ]
+    },
+    "SMS Service API": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "edit",
+        "test_connection",
+        "send_test"
+      ]
+    },
+    "Approval Limits": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "create_limit",
+        "edit_limit",
+        "delete_limit",
+        "toggle_active"
+      ]
+    },
+    "Transparency Settings": {
+      "tabs": [],
+      "actions": [
+        "view",
+        "edit",
+        "toggle_feature"
+      ]
+    },
+    "Cloud Backup": {
+      "tabs": [
+        "backups",
+        "settings"
+      ],
+      "actions": [
+        "view",
+        "create_backup",
+        "restore_backup",
+        "download_backup",
+        "delete_backup",
+        "configure_schedule",
+        "test_s3"
+      ]
+    }
+  }
+}

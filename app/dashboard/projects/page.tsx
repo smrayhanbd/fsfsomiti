@@ -2,10 +2,16 @@ import prisma from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { getCurrentUser } from "@/lib/permissions"
 import ProjectsClient from "./ProjectsClient"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
 export default async function ProjectsPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Operations & Management", "Project Management")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
 

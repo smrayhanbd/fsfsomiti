@@ -57,7 +57,7 @@ export async function POST() {
       backupCodes,
     })
   } catch (err) {
-    // eslint-disable-next-line no-console
+     
     console.error("[/api/auth/mfa/enroll] failed:", err)
     return NextResponse.json(
       { error: "Failed to begin MFA enrollment" },

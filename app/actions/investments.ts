@@ -12,7 +12,7 @@ import prisma, { directPrisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "@/lib/permissions"
-import { PERMISSIONS } from "@/lib/permissions"
+import { requireAction, authErrorResult } from "@/lib/auth-guard"
 import {
   postInvestmentPurchase,
   postInvestmentIncome,
@@ -23,6 +23,12 @@ import { nextInvestmentNo } from "@/lib/portfolio/ids"
 import { resolveAccountId, assetCodeForTypeSlug, incomeCodeForType } from "@/lib/portfolio/accounting"
 import { writeAuditLog, type ActionResult } from "@/lib/portfolio/validation"
 import { lockRow } from "@/lib/transactions/lock"
+
+// Permission scope for this module.
+const SCOPE = {
+  menuGroup: "Operations & Management",
+  page: "Investment Management",
+} as const
 
 const PATHS = [
   "/dashboard/investments",
@@ -74,6 +80,12 @@ export interface InvestmentInput {
 export async function saveInvestment(input: InvestmentInput): Promise<ActionResult> {
   const user = await getCurrentUser()
   if (!user) return { ok: false, error: "You must be signed in." }
+
+  try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, input.id ? "edit_investment" : "create_investment")
+  } catch (e) {
+    return authErrorResult(e)
+  }
 
   // Basic validation.
   if (!input.name?.trim()) return { ok: false, error: "Investment name is required." }
@@ -259,6 +271,12 @@ export interface InvestmentIncomeInput {
 export async function recordInvestmentIncome(input: InvestmentIncomeInput): Promise<ActionResult> {
   const user = await getCurrentUser()
   if (!user) return { ok: false, error: "You must be signed in." }
+
+  try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "record_income")
+  } catch (e) {
+    return authErrorResult(e)
+  }
   if (!input.investmentId) return { ok: false, error: "Investment is required." }
   if (!input.incomeDate) return { ok: false, error: "Income date is required." }
   const gross = Number(input.grossAmount || 0)
@@ -361,6 +379,12 @@ export interface InvestmentExitInput {
 export async function recordInvestmentExit(input: InvestmentExitInput): Promise<ActionResult> {
   const user = await getCurrentUser()
   if (!user) return { ok: false, error: "You must be signed in." }
+
+  try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "record_exit")
+  } catch (e) {
+    return authErrorResult(e)
+  }
   if (!input.exitDate) return { ok: false, error: "Exit date is required." }
 
   const proceeds = Number(input.proceeds || 0)
@@ -499,6 +523,12 @@ export interface ValuationInput {
 export async function recordValuation(input: ValuationInput): Promise<ActionResult> {
   const user = await getCurrentUser()
   if (!user) return { ok: false, error: "You must be signed in." }
+
+  try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "record_valuation")
+  } catch (e) {
+    return authErrorResult(e)
+  }
   if (!input.valuationDate) return { ok: false, error: "Valuation date is required." }
   if (!(Number(input.marketValue) > 0)) return { ok: false, error: "Market value must be greater than zero." }
 
@@ -565,6 +595,12 @@ export async function deleteInvestmentDraft(id: string): Promise<ActionResult> {
   if (!user) return { ok: false, error: "You must be signed in." }
 
   try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "delete_investment")
+  } catch (e) {
+    return authErrorResult(e)
+  }
+
+  try {
     const investment = await prisma.investment.findUnique({
       where: { id },
       select: { id: true, status: true, journalEntryId: true, name: true, investmentNo: true },
@@ -605,6 +641,12 @@ export async function linkInvestmentProject(args: {
   if (!user) return { ok: false, error: "You must be signed in." }
 
   try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "edit_investment")
+  } catch (e) {
+    return authErrorResult(e)
+  }
+
+  try {
     const link = await prisma.investmentProjectLink.create({
       data: {
         investmentId: args.investmentId,
@@ -639,6 +681,12 @@ export async function linkInvestmentProject(args: {
 export async function unlinkInvestmentProject(linkId: string): Promise<ActionResult> {
   const user = await getCurrentUser()
   if (!user) return { ok: false, error: "You must be signed in." }
+
+  try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "edit_investment")
+  } catch (e) {
+    return authErrorResult(e)
+  }
 
   try {
     // Capture the link before deleting so we can record an UNLINK audit entry

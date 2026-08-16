@@ -2,10 +2,16 @@ import prisma from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import LoanProductForm, { type LoanProductData } from "../../LoanProductForm"
 import { updateLoanProduct } from "@/app/actions/loan"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = 'force-dynamic'
 
 export default async function EditLoanProductPage({ params }: { params: Promise<{ id: string }> }) {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Finance & Accounting", "Loan Management")
+
+
   const { id } = await params
 
   const product = await prisma.loanProduct.findUnique({ where: { id } })

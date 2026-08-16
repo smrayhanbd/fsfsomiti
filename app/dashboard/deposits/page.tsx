@@ -1,10 +1,16 @@
 import prisma from "@/lib/prisma"
 import Link from "next/link"
 import WithdrawalClient from "./WithdrawalClient"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = 'force-dynamic'
 
 export default async function WithdrawalEntryPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Transactions", "Deposit Entry")
+
+
   // 1. Fetch Active Members with calculated balances
   const dbMembers = await prisma.member.findMany({
     where: { status: "ACTIVE" },

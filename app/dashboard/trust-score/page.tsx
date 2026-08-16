@@ -3,10 +3,16 @@ import TrustLeaderboardClient from "./TrustLeaderboardClient"
 import Link from "next/link"
 import { Settings, Medal } from "lucide-react"
 import PageHeader from "@/components/somiti/PageHeader"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
 export default async function TrustLeaderboardPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Member Management", "Trust Leaderboard")
+
+
   const members = await prisma.member.findMany({
     where: { status: { in: ["ACTIVE", "SUSPENDED", "INACTIVE"] } },
     select: {

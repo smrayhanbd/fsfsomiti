@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
 import { getCurrentUser, isSuperAdmin, hasPermission, PERMISSIONS } from "@/lib/permissions"
 import TransactionDetailClient, { type TransactionDetailData } from "./TransactionDetailClient"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -10,6 +11,11 @@ export default async function TransactionDetailPage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Transactions", "Transaction History")
+
+
   const { id } = await params
   const user = await getCurrentUser()
   if (!user) redirect("/")

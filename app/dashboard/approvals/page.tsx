@@ -1,9 +1,15 @@
 import prisma from "@/lib/prisma"
 import ApprovalsClient from "./ApprovalsClient"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = 'force-dynamic'
 
 export default async function ApprovalsPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Transactions", "Member Requests")
+
+
   // Fetch the three approval-history groups in parallel.
   const [pendingMembers, approvedMembers, rejectedMembers] = await Promise.all([
     prisma.member.findMany({

@@ -1,10 +1,16 @@
 import { calculateDues } from "@/lib/dueCalculator"
 import prisma from "@/lib/prisma"
 import MemberListClient from "./MemberListClient"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = 'force-dynamic'
 
 export default async function MembersPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Member Management", "Member Panel")
+
+
   // Fetch real members with related data for the list + quick-view drawer
   const dbMembers = await prisma.member.findMany({
     include: {

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { getCurrentUser, isSuperAdmin } from "@/lib/permissions"
 import SmsSettingsClient from "./SmsSettingsClient"
 import type { SmsProvider } from "@/lib/sms/provider-metadata"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -45,6 +46,11 @@ function serializeSettings(s: Awaited<ReturnType<typeof prisma.smsSettings.findU
 }
 
 export default async function SmsSettingsPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("System & Settings", "SMS Service API")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
   if (!isSuperAdmin(user)) redirect("/dashboard")

@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/permissions"
 import { isSuperAdminUser, hasPermission } from "@/lib/permissions/resolver"
 import { actionKey } from "@/lib/permissions/permission-registry"
 import PermissionMatrixClient from "./PermissionMatrixClient"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -25,6 +26,11 @@ export default async function RolePermissionMatrixPage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("System & Settings", "Role Permissions")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
   const allowed =

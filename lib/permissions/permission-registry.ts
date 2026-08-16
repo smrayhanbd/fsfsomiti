@@ -43,7 +43,7 @@ export const PERMISSION_REGISTRY = {
   Overview: {
     Dashboard: {
       tabs: [],
-      actions: ["export_pdf", "print"],
+      actions: ["view", "export_pdf", "print", "refresh"],
     },
   },
 
@@ -51,28 +51,33 @@ export const PERMISSION_REGISTRY = {
   "Member Management": {
     "Member Panel": {
       tabs: ["all", "active", "pending", "suspended"],
-      actions: ["create_member", "edit_member", "delete_member", "approve_member", "suspend_member", "export_pdf", "send_sms"],
+      actions: [
+        "view", "create_member", "edit_member", "delete_member", "approve_member",
+        "suspend_member", "reinstate_member", "export_pdf", "export_csv", "import",
+        "send_sms", "send_email", "print", "view_detail", "verify_kyc", "reset_credentials",
+        "manage_nominees", "upload_photo", "download_id_card", "print_form",
+      ],
     },
     "Pending Approvals": {
       tabs: ["member_requests", "profile_requests"],
-      actions: ["approve", "reject", "request_more_info"],
+      actions: ["view", "approve", "reject", "request_more_info", "view_detail", "export_pdf"],
     },
     "Member's Pending Req.": {
       tabs: ["profile_requests", "pending"],
-      actions: ["approve", "reject", "request_more_info"],
+      actions: ["view", "approve", "reject", "request_more_info", "view_detail"],
     },
     // SubItems of the "Trust Score & Badges" accordion parent:
     "Trust Leaderboard": {
       tabs: [],
-      actions: ["export_pdf", "print"],
+      actions: ["view", "export_pdf", "print"],
     },
     "Achievement Badges": {
       tabs: ["all", "awarded"],
-      actions: ["create_badge", "edit_badge", "delete_badge", "assign_badge"],
+      actions: ["view", "create_badge", "edit_badge", "delete_badge", "assign_badge", "revoke_badge"],
     },
     "Score Settings": {
       tabs: [],
-      actions: ["edit_config", "reset_scores"],
+      actions: ["view", "edit_config", "reset_scores", "recalculate"],
     },
   },
 
@@ -80,44 +85,53 @@ export const PERMISSION_REGISTRY = {
   Transactions: {
     "Members Due List": {
       tabs: ["all", "overdue", "upcoming"],
-      actions: ["send_sms", "export_pdf", "print", "apply_charge"],
+      actions: ["view", "send_sms", "send_email", "export_pdf", "export_csv", "print", "apply_charge", "view_detail"],
     },
     "Deposit Entry": {
       tabs: ["pending", "approved", "reversed"],
-      actions: ["create_deposit", "edit_deposit", "delete_deposit", "approve_deposit", "reverse_deposit", "print"],
+      actions: [
+        "view", "create_deposit", "edit_deposit", "delete_deposit", "approve_deposit",
+        "reverse_deposit", "print", "export_pdf", "export_csv", "view_detail", "upload_slip",
+      ],
     },
     "Withdrawal Entry": {
       tabs: ["pending", "approved", "reversed"],
-      actions: ["create_withdrawal", "edit_withdrawal", "delete_withdrawal", "approve_withdrawal", "reverse_withdrawal", "print"],
+      actions: [
+        "view", "create_withdrawal", "edit_withdrawal", "delete_withdrawal", "approve_withdrawal",
+        "reverse_withdrawal", "print", "export_pdf", "export_csv", "view_detail",
+      ],
     },
     "Distribute Income": {
       tabs: ["draft", "posted", "reversed"],
-      actions: ["create_distribution", "post_distribution", "reverse_distribution", "print", "export_pdf"],
+      actions: ["view", "create_distribution", "edit_distribution", "post_distribution", "reverse_distribution", "print", "export_pdf", "view_detail"],
     },
     "Apply Charges": {
       tabs: ["pending", "approved", "reversed"],
-      actions: ["create_charge", "edit_charge", "delete_charge", "approve_charge", "reverse_charge", "send_sms"],
+      actions: [
+        "view", "create_charge", "edit_charge", "delete_charge", "approve_charge",
+        "reverse_charge", "send_sms", "export_pdf", "view_detail",
+      ],
     },
     // SubItems of the "Transaction Approvals" accordion parent:
     "Admin Submitted": {
       tabs: ["pending", "approved", "returned", "rejected"],
-      actions: ["approve", "return", "reject", "reverse"],
+      actions: ["view", "approve", "return", "reject", "reverse", "view_detail", "export_pdf"],
     },
     "Member Requests": {
       tabs: ["pending", "approved", "rejected"],
-      actions: ["approve", "reject", "request_more_info"],
+      actions: ["view", "approve", "reject", "request_more_info", "view_detail", "export_pdf"],
     },
     "Cash Closing": {
       tabs: ["open", "closed"],
-      actions: ["open_cash", "close_cash", "adjust", "print"],
+      actions: ["view", "open_cash", "close_cash", "adjust", "print", "export_pdf"],
     },
     "Transaction History": {
       tabs: ["deposits", "withdrawals", "charges", "distributions"],
-      actions: ["export_pdf", "print", "view_detail", "reverse"],
+      actions: ["view", "export_pdf", "export_csv", "print", "view_detail", "reverse", "filter", "search"],
     },
     "Fees & Charge Setup": {
       tabs: ["active", "inactive"],
-      actions: ["create_fee", "edit_fee", "delete_fee", "toggle_active"],
+      actions: ["view", "create_fee", "edit_fee", "delete_fee", "toggle_active", "duplicate_fee"],
     },
   },
 
@@ -125,45 +139,50 @@ export const PERMISSION_REGISTRY = {
   "Finance & Accounting": {
     "Loan Management": {
       tabs: ["overview", "pending", "active", "closed", "defaulted"],
-      actions: ["create_loan", "edit_loan", "delete_loan", "approve_loan", "disburse_loan", "reject_loan", "record_repayment", "write_off", "export_pdf", "print", "send_sms"],
+      actions: [
+        "view", "create_loan", "edit_loan", "delete_loan", "approve_loan", "reject_loan",
+        "disburse_loan", "record_repayment", "write_off", "export_pdf", "export_csv",
+        "print", "send_sms", "send_email", "view_detail", "configure_products",
+        "create_loan_product", "edit_loan_product", "delete_loan_product", "import", "filter", "search",
+      ],
     },
     "Chart of Accounts": {
       tabs: ["assets", "liabilities", "income", "expense"],
-      actions: ["create_account", "edit_account", "delete_account", "toggle_active"],
+      actions: ["view", "create_account", "edit_account", "delete_account", "toggle_active", "import", "export_pdf", "export_csv"],
     },
     "Voucher Entry": {
       tabs: ["journal", "receipt", "payment", "contra"],
-      actions: ["create_voucher", "edit_voucher", "delete_voucher", "post_voucher", "print"],
+      actions: ["view", "create_voucher", "edit_voucher", "delete_voucher", "post_voucher", "print", "export_pdf", "reverse"],
     },
     // SubItems of "Financial Statements":
     "Trial Balance": {
       tabs: [],
-      actions: ["export_pdf", "print"],
+      actions: ["view", "export_pdf", "export_csv", "print", "filter"],
     },
     "Balance Sheet": {
       tabs: [],
-      actions: ["export_pdf", "print"],
+      actions: ["view", "export_pdf", "export_csv", "print", "filter"],
     },
     "Profit & Loss": {
       tabs: [],
-      actions: ["export_pdf", "print"],
+      actions: ["view", "export_pdf", "export_csv", "print", "filter"],
     },
     // SubItems of "Reports":
     "Account Ledger": {
       tabs: [],
-      actions: ["export_pdf", "print"],
+      actions: ["view", "export_pdf", "export_csv", "print", "filter", "search"],
     },
     "Member Ledger": {
       tabs: [],
-      actions: ["export_pdf", "print", "send_sms"],
+      actions: ["view", "export_pdf", "export_csv", "print", "send_sms", "filter", "search"],
     },
     "Money Receipts": {
       tabs: [],
-      actions: ["print", "export_pdf"],
+      actions: ["view", "print", "export_pdf", "download", "email_receipt"],
     },
     "View Vouchers": {
       tabs: ["journal", "receipt", "payment"],
-      actions: ["print", "reverse", "export_pdf"],
+      actions: ["view", "print", "reverse", "export_pdf", "view_detail"],
     },
   },
 
@@ -171,39 +190,54 @@ export const PERMISSION_REGISTRY = {
   "Operations & Management": {
     "Meeting Management": {
       tabs: ["upcoming", "completed", "cancelled"],
-      actions: ["create_meeting", "edit_meeting", "delete_meeting", "mark_attendance", "upload_minutes", "send_sms"],
+      actions: [
+        "view", "create_meeting", "edit_meeting", "delete_meeting", "mark_attendance",
+        "upload_minutes", "send_sms", "send_email", "export_pdf", "print", "view_detail", "download_minutes",
+      ],
     },
     "Project Management": {
       tabs: ["planning", "active", "completed"],
-      actions: ["create_project", "edit_project", "delete_project", "record_expense", "record_revenue", "export_pdf"],
+      actions: [
+        "view", "create_project", "edit_project", "delete_project", "record_expense",
+        "record_revenue", "export_pdf", "export_csv", "view_detail", "manage_milestones",
+        "manage_cost_centers", "manage_team", "upload_document", "link_investment", "print",
+      ],
     },
     "Investment Management": {
       tabs: ["active", "exited", "draft"],
-      actions: ["create_investment", "edit_investment", "delete_investment", "record_income", "record_exit", "record_valuation", "distribute_income", "export_pdf"],
+      actions: [
+        "view", "create_investment", "edit_investment", "delete_investment", "record_income",
+        "record_exit", "record_valuation", "distribute_income", "export_pdf", "export_csv",
+        "view_detail", "link_project", "upload_document", "print",
+      ],
     },
     // SubItems of "Task Management":
     "All Tasks": {
       tabs: ["my_tasks", "all_tasks", "completed", "overdue"],
-      actions: ["create_task", "edit_task", "delete_task", "assign_task", "approve_task", "start_task", "complete_task", "log_time"],
+      actions: [
+        "view", "create_task", "edit_task", "delete_task", "assign_task", "approve_task",
+        "start_task", "complete_task", "log_time", "view_detail", "export_pdf", "print",
+        "manage_recurring", "add_comment", "upload_attachment",
+      ],
     },
     "Task Reports": {
       tabs: [],
-      actions: ["export_pdf", "print"],
+      actions: ["view", "export_pdf", "export_csv", "print", "filter"],
     },
     Committees: {
       tabs: ["active", "archived"],
-      actions: ["create_committee", "edit_committee", "delete_committee", "assign_member"],
+      actions: ["view", "create_committee", "edit_committee", "delete_committee", "assign_member", "remove_member", "view_detail", "export_pdf"],
     },
     "Special Wishes": {
       tabs: ["upcoming", "past"],
-      actions: ["create_wish", "edit_wish", "delete_wish", "send_sms"],
+      actions: ["view", "create_wish", "edit_wish", "delete_wish", "send_sms", "send_email", "export_pdf"],
     },
     // Election Management module — full lifecycle (create, configure, nominate,
     // vote, count, publish, form committee).
     "Election Management": {
       tabs: ["all", "draft", "nomination", "voting", "results", "archived", "test"],
       actions: [
-        "create_election", "edit_election", "delete_draft_election", "clone_election",
+        "view", "create_election", "edit_election", "delete_draft_election", "clone_election",
         "configure_positions", "configure_rules", "open_nomination", "close_nomination",
         "finalize_candidates", "approve_candidate", "reject_candidate", "disqualify_candidate",
         "review_candidate", "override_eligibility", "open_voting", "close_voting",
@@ -211,6 +245,8 @@ export const PERMISSION_REGISTRY = {
         "form_committee", "manage_vacancy", "create_runoff", "resolve_tie", "recount",
         "freeze_election", "unfreeze_election", "cancel_election", "manage_test_election",
         "rotate_keys", "assign_observer", "revoke_observer", "view_audit", "export_pdf",
+        "export_csv", "print", "view_detail", "save_eligibility_config", "preview_eligibility",
+        "sync_committee_to_landing", "save_committee_bios",
       ],
     },
   },
@@ -219,44 +255,51 @@ export const PERMISSION_REGISTRY = {
   "System & Settings": {
     "User Control": {
       tabs: ["users", "roles", "audit"],
-      actions: ["create_user", "edit_user", "delete_user", "deactivate_user", "assign_role", "manage_permissions", "view_audit"],
+      actions: [
+        "view", "create_user", "edit_user", "delete_user", "deactivate_user", "activate_user",
+        "assign_role", "revoke_role", "manage_permissions", "view_audit", "reset_password",
+        "export_pdf", "export_csv", "view_detail",
+      ],
     },
     "Role Permissions": {
       tabs: ["roles", "matrix"],
-      actions: ["create_role", "edit_role", "delete_role", "manage_permissions", "view_audit"],
+      actions: [
+        "view", "create_role", "edit_role", "delete_role", "manage_permissions",
+        "view_audit", "export_pdf", "view_detail", "clone_role",
+      ],
     },
     // SubItems of "Somiti Settings":
     "Organization Info": {
       tabs: [],
-      actions: ["edit"],
+      actions: ["view", "edit", "upload_logo", "manage_contact"],
     },
     "Landing Page Content": {
       tabs: [],
-      actions: ["edit"],
+      actions: ["view", "edit", "upload_image", "manage_seo", "preview", "publish"],
     },
     "Active Bank Accounts": {
       tabs: [],
-      actions: ["create_account", "edit_account", "delete_account", "set_default"],
+      actions: ["view", "create_account", "edit_account", "delete_account", "set_default", "toggle_active"],
     },
     "Mail Server Setup": {
       tabs: [],
-      actions: ["edit", "test_connection"],
+      actions: ["view", "edit", "test_connection", "send_test"],
     },
     "SMS Service API": {
       tabs: [],
-      actions: ["edit", "test_connection", "send_test"],
+      actions: ["view", "edit", "test_connection", "send_test"],
     },
     "Approval Limits": {
       tabs: [],
-      actions: ["create_limit", "edit_limit", "delete_limit"],
+      actions: ["view", "create_limit", "edit_limit", "delete_limit", "toggle_active"],
     },
     "Transparency Settings": {
       tabs: [],
-      actions: ["edit", "toggle_feature"],
+      actions: ["view", "edit", "toggle_feature"],
     },
     "Cloud Backup": {
       tabs: ["backups", "settings"],
-      actions: ["create_backup", "restore_backup", "download_backup", "delete_backup"],
+      actions: ["view", "create_backup", "restore_backup", "download_backup", "delete_backup", "configure_schedule", "test_s3"],
     },
   },
 } as const satisfies Record<string, MenuGroupPermissionDef>

@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma"
 import SiteContentForm from "./SiteContentForm"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +50,11 @@ function normalizeContent(c: NonNullable<Awaited<ReturnType<typeof prisma.siteCo
 }
 
 export default async function ManageSiteContentPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("System & Settings", "Landing Page Content")
+
+
   const row = await prisma.siteContent.findUnique({ where: { id: "singleton" } })
 
   // Fallback to an empty structure if no content exists yet — every field
@@ -67,13 +73,20 @@ export default async function ManageSiteContentPage() {
         updatedAt: new Date(),
       }
 
+  // Fetch active members for the Management Committee dropdown
+  const activeMembers = await prisma.member.findMany({
+    where: { status: "ACTIVE" },
+    select: { id: true, fullName: true, memberNo: true, phone: true, email: true },
+    orderBy: { fullName: "asc" },
+  })
+
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Landing Page Content</h1>
         <p className="text-slate-500 dark:text-slate-400 mt-1">
-          Manage every section of your public website — hero, stats, security marquee, pillars,
-          member-portal features, how-it-works steps, transparency text, management, projects, and activities.
+          Manage every section of your public website — hero, stats, pillars, member-portal features,
+          transparency text, management committee, projects, and activities.
         </p>
       </div>
       {/*
@@ -82,7 +95,10 @@ export default async function ManageSiteContentPage() {
         form file). The shape is structurally identical — the cast only
         erases Prisma's `Json` widening on the array fields.
       */}
-      <SiteContentForm content={content as React.ComponentProps<typeof SiteContentForm>["content"]} />
+      <SiteContentForm
+        content={content as React.ComponentProps<typeof SiteContentForm>["content"]}
+        activeMembers={activeMembers.map((m) => ({ id: m.id, fullName: m.fullName, memberNo: m.memberNo }))}
+      />
     </div>
   )
 }

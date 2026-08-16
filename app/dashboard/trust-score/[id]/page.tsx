@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { getKpiConfig, getScoreView } from "@/lib/trustScore"
 import ScoreDashboard from "@/components/trust-score/ScoreDashboard"
 import ReactivateButton from "./ReactivateButton"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -14,6 +15,11 @@ export default async function TrustScoreDetailPage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Member Management", "Trust Leaderboard")
+
+
   const { id } = await params
 
   const member = await prisma.member.findUnique({

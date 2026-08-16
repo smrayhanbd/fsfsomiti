@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { getCurrentUser } from "@/lib/permissions"
 import { calculateDues } from "@/lib/dueCalculator"
+import { guardDashboardPage } from "@/lib/page-guard"
 import {
   getDefaultCoasForAllGroups,
   missingGroups,
@@ -11,6 +12,11 @@ import DepositForm from "./DepositForm"
 export const dynamic = "force-dynamic"
 
 export default async function DepositTransactionsPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Transactions", "Deposit Entry")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
 

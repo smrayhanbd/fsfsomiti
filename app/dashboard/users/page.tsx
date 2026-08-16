@@ -2,10 +2,16 @@ import prisma from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { getCurrentUser, isSuperAdmin } from "@/lib/permissions"
 import UsersClient from "./UsersClient"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
 export default async function UsersPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("System & Settings", "User Control")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
   const canManage = isSuperAdmin(user)

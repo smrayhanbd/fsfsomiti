@@ -39,7 +39,12 @@ RUN npx prisma generate
 # Build Next.js with the standalone output. The env vars below are required
 # for the build-time env evaluation — they're dummies; real secrets are
 # supplied at runtime.
+#
+# DOCKER_BUILD=1 tells next.config.ts to enable `output: 'standalone'`.
+# Without this flag, `output` is `undefined` (the default for Vercel builds,
+# where standalone would crash the Turbopack tracing step).
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV DOCKER_BUILD=1
 ENV NEXTAUTH_URL=http://localhost:3000
 ENV NEXTAUTH_SECRET=dummy-build-time-secret
 ENV ENCRYPTION_KEY=dummy-build-time-key-base64==

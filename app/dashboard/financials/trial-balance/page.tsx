@@ -3,6 +3,7 @@ import { buildTrialBalance } from "@/lib/financialStatements"
 import { accountTypeMeta, formatBDT, formatDate } from "@/lib/accounting"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { guardDashboardPage } from "@/lib/page-guard"
 import {
   Table,
   TableBody,
@@ -24,6 +25,11 @@ export default async function TrialBalancePage({
 }: {
   searchParams: Promise<{ asOf?: string }>
 }) {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Finance & Accounting", "Trial Balance")
+
+
   const params = await searchParams
   const asOf = params.asOf ? new Date(params.asOf) : undefined
 

@@ -3,6 +3,7 @@ import Link from "next/link"
 import { ArrowLeft, Medal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -19,6 +20,11 @@ const BADGE_DEFS = [
 ]
 
 export default async function BadgesRosterPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Member Management", "Achievement Badges")
+
+
   // Count active holders per badge code.
   const holders = await prisma.achievementBadge.groupBy({
     by: ["badgeCode"],

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 // ============================================================================
 // Election validation — date rules, position config, ballot selections.
 // ============================================================================

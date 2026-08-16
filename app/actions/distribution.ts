@@ -16,6 +16,7 @@ import prisma, { directPrisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "@/lib/permissions"
+import { requireAction, authErrorResult } from "@/lib/auth-guard"
 import type { ActionResult } from "@/lib/portfolio/validation"
 import { snapshotEligibleMembers } from "@/lib/distribution/snapshot"
 import { calculateShares, sharesBalanceTo } from "@/lib/distribution/allocate"
@@ -27,6 +28,12 @@ import {
   type Basis,
   type SourceType,
 } from "@/lib/distribution/types"
+
+// Permission scope for this module.
+const SCOPE = {
+  menuGroup: "Transactions",
+  page: "Distribute Income",
+} as const
 
 const REVALIDATE_PATHS = [
   "/dashboard/distributions",
@@ -94,6 +101,12 @@ export async function createDistribution(
 
   const user = await getCurrentUser()
   if (!user) return fail("You must be signed in.")
+
+  try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "create_distribution")
+  } catch (e) {
+    return authErrorResult(e)
+  }
 
   try {
     const result = await directPrisma.$transaction(async (tx) => {
@@ -170,6 +183,12 @@ export async function postDistributionAction(id: string): Promise<ActionResult> 
   if (!user) return fail("You must be signed in.")
 
   try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "post_distribution")
+  } catch (e) {
+    return authErrorResult(e)
+  }
+
+  try {
     const voucherNo = await directPrisma.$transaction(async (tx) => {
       // B19: lock the IncomeDistribution row so two concurrent POST actions
       // can't both pass the "is DRAFT" check and post two vouchers, double-
@@ -244,6 +263,12 @@ export async function reverseDistributionAction(
   if (!reason?.trim()) return fail("A reversal reason is required.")
   const user = await getCurrentUser()
   if (!user) return fail("You must be signed in.")
+
+  try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "reverse_distribution")
+  } catch (e) {
+    return authErrorResult(e)
+  }
 
   try {
     const reversalNo = await directPrisma.$transaction(async (tx) => {

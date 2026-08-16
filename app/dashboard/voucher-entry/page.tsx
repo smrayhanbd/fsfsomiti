@@ -1,10 +1,16 @@
 import prisma from "@/lib/prisma"
 import VoucherEntryForm from "./VoucherEntryForm"
 import { voucherPrefix } from "@/lib/accounting"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
 export default async function VoucherEntryPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Finance & Accounting", "Voucher Entry")
+
+
   // Only accounts that may receive postings are selectable.
   const accounts = await prisma.account.findMany({
     where: {

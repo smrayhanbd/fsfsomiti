@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import {
   Select,
@@ -24,15 +23,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
-import {
-  updateUser,
-  setUserActive,
-  resetUserPassword,
-  grantPermission,
-  revokePermission,
-  setUserRole,
-} from "@/app/actions/users"
-import { PERMISSION_GROUPS } from "@/lib/permissions"
+import { updateUser, setUserActive, resetUserPassword, setUserRole } from "@/app/actions/users"
 import { formatDate } from "@/lib/accounting"
 import {
   ArrowLeft,
@@ -93,16 +84,9 @@ interface Props {
   currentUserId: string
 }
 
-// Human-readable labels for each permission key.
-const PERM_LABELS: Record<string, string> = {
-  MEETING_ATTENDANCE_MARK: "Mark Attendance",
-  MEETING_MINUTES_UPLOAD: "Upload Minutes",
-  TRANSACTION_CREATE: "Create Transactions",
-  TRANSACTION_SUBMIT: "Submit for Approval",
-  TRANSACTION_APPROVE: "Approve Transactions",
-  TRANSACTION_REVERSE: "Reverse Transactions",
-  USER_MANAGE: "Manage Users",
-}
+// (Legacy flat-permission labels + toggle handler removed — the new
+// UserPermissionsCard below handles all permission management via the
+// two-mode Role-Based / Direct Permissions UI.)
 
 export default function UserEditClient({ user, allRoles, currentRoleId, canManage, currentUserId }: Props) {
   const router = useRouter()
@@ -111,7 +95,6 @@ export default function UserEditClient({ user, allRoles, currentRoleId, canManag
   const [email, setEmail] = useState(user.email)
   const [phone, setPhone] = useState(user.phone ?? "")
   const [roleId, setRoleId] = useState<string>(currentRoleId ?? "")
-  const [granted, setGranted] = useState<Set<string>>(new Set(user.permissions))
   const [pwOpen, setPwOpen] = useState(false)
   const [newPassword, setNewPassword] = useState("")
 
@@ -144,31 +127,6 @@ export default function UserEditClient({ user, allRoles, currentRoleId, canManag
       }
       toast.success("Profile updated")
       router.refresh()
-    })
-  }
-
-  const handleTogglePerm = (key: string, on: boolean) => {
-    setGranted((prev) => {
-      const next = new Set(prev)
-      if (on) next.add(key)
-      else next.delete(key)
-      return next
-    })
-    startTransition(async () => {
-      const res = on
-        ? await grantPermission(user.id, key as Parameters<typeof grantPermission>[1])
-        : await revokePermission(user.id, key as Parameters<typeof revokePermission>[1])
-      if (res.ok) toast.success(on ? "Permission granted" : "Permission revoked")
-      else {
-        toast.error("Failed", { description: res.error })
-        // revert local state on failure
-        setGranted((prev) => {
-          const next = new Set(prev)
-          if (on) next.delete(key)
-          else next.add(key)
-          return next
-        })
-      }
     })
   }
 
@@ -292,49 +250,7 @@ export default function UserEditClient({ user, allRoles, currentRoleId, canManag
         </CardContent>
       </Card>
 
-      {/* Permission Matrix */}
-      <Card className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 rounded-2xl">
-        <CardHeader>
-          <CardTitle className="text-sm uppercase tracking-wider text-slate-500">
-            Permissions
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isSuperUser ? (
-            <p className="text-sm text-slate-500 bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
-              <ShieldCheck className="inline h-4 w-4 mr-1 text-indigo-500" />
-              Super Admin has no permission restrictions.
-            </p>
-          ) : (
-            PERMISSION_GROUPS.map((g) => (
-              <div key={g.group}>
-                <p className="text-[11px] uppercase tracking-wider font-bold text-slate-400 mb-2">
-                  {g.group}
-                </p>
-                <div className="space-y-2">
-                  {g.keys.map((k) => (
-                    <div
-                      key={k}
-                      className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800/60 last:border-0"
-                    >
-                      <span className="text-sm text-slate-700 dark:text-slate-200">
-                        {PERM_LABELS[k] ?? k}
-                      </span>
-                      <Switch
-                        checked={granted.has(k)}
-                        onCheckedChange={(v) => handleTogglePerm(k, v as boolean)}
-                        disabled={!canManage || isPending}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Roles, Overrides & Effective Preview (new RBAC system) */}
+      {/* Permissions — single unified card (Role-Based + Direct Permissions) */}
       <UserPermissionsCard
         userId={user.id}
         assignedRoles={user.assignedRoles}

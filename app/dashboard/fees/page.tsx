@@ -1,9 +1,15 @@
 import prisma from "@/lib/prisma"
 import FinesManager from "./FinesManager"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
 export default async function FeesPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Transactions", "Fees & Charge Setup")
+
+
   const [members, fineTypes, fines] = await Promise.all([
     prisma.member.findMany({
       where: { status: { in: ["ACTIVE", "SUSPENDED", "INACTIVE"] } },

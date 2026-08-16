@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/permissions"
 import { getOrganization } from "@/lib/organization"
 import MoneyReceipt from "./MoneyReceipt"
 import type { PaymentMethod } from "@/lib/transactions/types"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -20,6 +21,11 @@ export default async function ReceiptPage({
 }: {
   params: Promise<{ transactionId: string }>
 }) {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Transactions", "Transaction History")
+
+
   const { transactionId } = await params
   const user = await getCurrentUser()
   if (!user) redirect("/")

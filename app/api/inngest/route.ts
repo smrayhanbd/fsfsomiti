@@ -1,21 +1,36 @@
 /**
- * Inngest webhook endpoint (Roadmap item 20).
+ * Inngest webhook endpoint — the single entry point for ALL scheduled
+ * jobs in the project.
  *
- * Inngest invokes this endpoint to receive + dispatch scheduled + triggered
- * jobs. When Inngest is not configured (INNGEST_EVENT_KEY unset), this route
- * returns 503 so Vercel Cron (which points to /api/backup/run directly) keeps
- * working but the Inngest dashboard stays disabled.
+ * Two flavours of function are registered here:
+ *   1. Event-triggered jobs (lib/inngest/jobs.ts) — fired by `dispatch()`
+ *      from inside request handlers (e.g. transaction.approved.notify).
+ *   2. Scheduled (cron) functions (lib/inngest/scheduled.ts) — fired by
+ *      Inngest Cloud on a cron schedule. These ARE the project's cron
+ *      scheduler (Vercel Cron is no longer used).
+ *
+ * When Inngest is not configured (INNGEST_EVENT_KEY unset), this route
+ * returns 503. NO scheduled jobs will fire in that state — you must
+ * either:
+ *   - Set INNGEST_EVENT_KEY + INNGEST_SIGNING_KEY in Vercel env vars, OR
+ *   - Run `npx inngest-cli@latest dev` locally for development.
+ *
+ * See CRON-SETUP.md for the full setup guide.
  */
 import { serve } from "inngest/next"
 import { inngest } from "@/lib/inngest/client"
 import { allJobs } from "@/lib/inngest/jobs"
+import { allScheduledFunctions } from "@/lib/inngest/scheduled"
 
 export const dynamic = "force-dynamic"
 
 // Convert plain InngestJob objects into Inngest function executables.
+// Combine with scheduled functions so Inngest Cloud sees both event-triggered
+// and cron-triggered functions when it syncs on deploy.
+//
 // Guard against inngest being null (no INNGEST_EVENT_KEY configured).
 const client = inngest
-const functions = client
+const eventFunctions = client
   ? allJobs.map((job) =>
       client.createFunction(
         { id: job.id, name: job.id },
@@ -27,6 +42,10 @@ const functions = client
     )
   : []
 
+const functions = client
+  ? [...eventFunctions, ...allScheduledFunctions]
+  : []
+
 const handler = client
   ? serve({
       client,
@@ -35,7 +54,10 @@ const handler = client
     })
   : () =>
       new Response(
-        JSON.stringify({ error: "Inngest not configured — set INNGEST_EVENT_KEY" }),
+        JSON.stringify({
+          error: "Inngest not configured — set INNGEST_EVENT_KEY + INNGEST_SIGNING_KEY",
+          hint: "See CRON-SETUP.md for setup instructions",
+        }),
         { status: 503, headers: { "Content-Type": "application/json" } }
       )
 

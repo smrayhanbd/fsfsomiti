@@ -32,84 +32,28 @@
 // ============================================================================
 
 const { PrismaClient } = require('@prisma/client');
+const fs = require('fs');
+const path = require('path');
 const prisma = new PrismaClient();
 
-// ── Permission registry (mirrors lib/permissions/permission-registry.ts) ─
-// Kept as plain data so this CJS seed needs no TS transpiler. The TS file is
-// the canonical source; if you change the registry there, mirror the change
-// here (or run a one-off sync from enumerateRegistry()).
-const REGISTRY = {
-  Overview: {
-    Dashboard: { tabs: [], actions: ['export_pdf', 'print'] },
-  },
-  'Member Management': {
-    'Member Panel': { tabs: ['all', 'active', 'pending', 'suspended'], actions: ['create_member', 'edit_member', 'delete_member', 'approve_member', 'suspend_member', 'export_pdf', 'send_sms'] },
-    'Pending Approvals': { tabs: ['member_requests', 'profile_requests'], actions: ['approve', 'reject', 'request_more_info'] },
-    "Member's Pending Req.": { tabs: ['profile_requests', 'pending'], actions: ['approve', 'reject', 'request_more_info'] },
-    'Trust Leaderboard': { tabs: [], actions: ['export_pdf', 'print'] },
-    'Achievement Badges': { tabs: ['all', 'awarded'], actions: ['create_badge', 'edit_badge', 'delete_badge', 'assign_badge'] },
-    'Score Settings': { tabs: [], actions: ['edit_config', 'reset_scores'] },
-  },
-  Transactions: {
-    "Members Due List": { tabs: ['all', 'overdue', 'upcoming'], actions: ['send_sms', 'export_pdf', 'print', 'apply_charge'] },
-    'Deposit Entry': { tabs: ['pending', 'approved', 'reversed'], actions: ['create_deposit', 'edit_deposit', 'delete_deposit', 'approve_deposit', 'reverse_deposit', 'print'] },
-    'Withdrawal Entry': { tabs: ['pending', 'approved', 'reversed'], actions: ['create_withdrawal', 'edit_withdrawal', 'delete_withdrawal', 'approve_withdrawal', 'reverse_withdrawal', 'print'] },
-    'Distribute Income': { tabs: ['draft', 'posted', 'reversed'], actions: ['create_distribution', 'post_distribution', 'reverse_distribution', 'print', 'export_pdf'] },
-    'Apply Charges': { tabs: ['pending', 'approved', 'reversed'], actions: ['create_charge', 'edit_charge', 'delete_charge', 'approve_charge', 'reverse_charge', 'send_sms'] },
-    'Admin Submitted': { tabs: ['pending', 'approved', 'returned', 'rejected'], actions: ['approve', 'return', 'reject', 'reverse'] },
-    'Member Requests': { tabs: ['pending', 'approved', 'rejected'], actions: ['approve', 'reject', 'request_more_info'] },
-    'Cash Closing': { tabs: ['open', 'closed'], actions: ['open_cash', 'close_cash', 'adjust', 'print'] },
-    'Transaction History': { tabs: ['deposits', 'withdrawals', 'charges', 'distributions'], actions: ['export_pdf', 'print', 'view_detail', 'reverse'] },
-    'Fees & Charge Setup': { tabs: ['active', 'inactive'], actions: ['create_fee', 'edit_fee', 'delete_fee', 'toggle_active'] },
-  },
-  'Finance & Accounting': {
-    'Loan Management': { tabs: ['overview', 'pending', 'active', 'closed', 'defaulted'], actions: ['create_loan', 'edit_loan', 'delete_loan', 'approve_loan', 'disburse_loan', 'reject_loan', 'record_repayment', 'write_off', 'export_pdf', 'print', 'send_sms'] },
-    'Chart of Accounts': { tabs: ['assets', 'liabilities', 'income', 'expense'], actions: ['create_account', 'edit_account', 'delete_account', 'toggle_active'] },
-    'Voucher Entry': { tabs: ['journal', 'receipt', 'payment', 'contra'], actions: ['create_voucher', 'edit_voucher', 'delete_voucher', 'post_voucher', 'print'] },
-    'Trial Balance': { tabs: [], actions: ['export_pdf', 'print'] },
-    'Balance Sheet': { tabs: [], actions: ['export_pdf', 'print'] },
-    'Profit & Loss': { tabs: [], actions: ['export_pdf', 'print'] },
-    'Account Ledger': { tabs: [], actions: ['export_pdf', 'print'] },
-    'Member Ledger': { tabs: [], actions: ['export_pdf', 'print', 'send_sms'] },
-    'Money Receipts': { tabs: [], actions: ['print', 'export_pdf'] },
-    'View Vouchers': { tabs: ['journal', 'receipt', 'payment'], actions: ['print', 'reverse', 'export_pdf'] },
-  },
-  'Operations & Management': {
-    'Meeting Management': { tabs: ['upcoming', 'completed', 'cancelled'], actions: ['create_meeting', 'edit_meeting', 'delete_meeting', 'mark_attendance', 'upload_minutes', 'send_sms'] },
-    'Project Management': { tabs: ['planning', 'active', 'completed'], actions: ['create_project', 'edit_project', 'delete_project', 'record_expense', 'record_revenue', 'export_pdf'] },
-    'Investment Management': { tabs: ['active', 'exited', 'draft'], actions: ['create_investment', 'edit_investment', 'delete_investment', 'record_income', 'record_exit', 'record_valuation', 'distribute_income', 'export_pdf'] },
-    'All Tasks': { tabs: ['my_tasks', 'all_tasks', 'completed', 'overdue'], actions: ['create_task', 'edit_task', 'delete_task', 'assign_task', 'approve_task', 'start_task', 'complete_task', 'log_time'] },
-    'Task Reports': { tabs: [], actions: ['export_pdf', 'print'] },
-    Committees: { tabs: ['active', 'archived'], actions: ['create_committee', 'edit_committee', 'delete_committee', 'assign_member'] },
-    'Special Wishes': { tabs: ['upcoming', 'past'], actions: ['create_wish', 'edit_wish', 'delete_wish', 'send_sms'] },
-    // Election Management — must mirror permission-registry.ts exactly.
-    'Election Management': {
-      tabs: ['all', 'draft', 'nomination', 'voting', 'results', 'archived', 'test'],
-      actions: [
-        'create_election', 'edit_election', 'delete_draft_election', 'clone_election',
-        'configure_positions', 'configure_rules', 'open_nomination', 'close_nomination',
-        'finalize_candidates', 'approve_candidate', 'reject_candidate', 'disqualify_candidate',
-        'review_candidate', 'override_eligibility', 'open_voting', 'close_voting',
-        'reopen_voting', 'count_votes', 'publish_result', 'publish_partial_result',
-        'form_committee', 'manage_vacancy', 'create_runoff', 'resolve_tie', 'recount',
-        'freeze_election', 'unfreeze_election', 'cancel_election', 'manage_test_election',
-        'rotate_keys', 'assign_observer', 'revoke_observer', 'view_audit', 'export_pdf',
-      ],
-    },
-  },
-  'System & Settings': {
-    'User Control': { tabs: ['users', 'roles', 'audit'], actions: ['create_user', 'edit_user', 'delete_user', 'deactivate_user', 'assign_role', 'manage_permissions', 'view_audit'] },
-    'Role Permissions': { tabs: ['roles', 'matrix'], actions: ['create_role', 'edit_role', 'delete_role', 'manage_permissions', 'view_audit'] },
-    'Organization Info': { tabs: [], actions: ['edit'] },
-    'Landing Page Content': { tabs: [], actions: ['edit'] },
-    'Active Bank Accounts': { tabs: [], actions: ['create_account', 'edit_account', 'delete_account', 'set_default'] },
-    'Mail Server Setup': { tabs: [], actions: ['edit', 'test_connection'] },
-    'SMS Service API': { tabs: [], actions: ['edit', 'test_connection', 'send_test'] },
-    'Approval Limits': { tabs: [], actions: ['create_limit', 'edit_limit', 'delete_limit'] },
-    'Transparency Settings': { tabs: [], actions: ['edit', 'toggle_feature'] },
-    'Cloud Backup': { tabs: ['backups', 'settings'], actions: ['create_backup', 'restore_backup', 'download_backup', 'delete_backup'] },
-  },
-};
+// ── Permission registry — loaded from prisma/registry.json ──────────────
+// The JSON file is generated from lib/permissions/permission-registry.ts by
+// running `node scripts/sync-registry.mjs`. This keeps the seed in sync
+// with the TS source automatically — no need to manually mirror the
+// registry in two places.
+//
+// To regenerate after editing permission-registry.ts:
+//   node scripts/sync-registry.mjs
+//   npm run seed:rbac
+const REGISTRY_PATH = path.join(__dirname, 'registry.json');
+let REGISTRY;
+try {
+  REGISTRY = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8'));
+} catch (e) {
+  console.error('Could not read prisma/registry.json.');
+  console.error('Run `node scripts/sync-registry.mjs` first to generate it from the TS registry.');
+  process.exit(1);
+}
 
 const SEP = '::';
 const groupKey = (g) => g;

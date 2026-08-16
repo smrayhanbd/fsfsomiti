@@ -3,6 +3,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { guardDashboardPage } from "@/lib/page-guard"
 import {
   HandCoins, PlusCircle, PackagePlus, FileSignature, Wallet,
   TrendingUp, AlertTriangle, Clock, ArrowRight,
@@ -19,6 +20,11 @@ import SectionCard from "@/components/somiti/SectionCard"
 export const dynamic = 'force-dynamic'
 
 export default async function LoansHubPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Finance & Accounting", "Loan Management")
+
+
   const [loans, applications, products] = await Promise.all([
     prisma.loan.findMany({
       where: { status: { in: ["DISBURSED", "REPAID", "DEFAULTED", "CLOSED", "WRITTEN_OFF"] } },

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { getCurrentUser } from "@/lib/permissions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatBDT, formatDate } from "@/lib/accounting"
+import { guardDashboardPage } from "@/lib/page-guard"
 import {
   Table,
   TableBody,
@@ -17,6 +18,11 @@ import { Wallet, TrendingUp, TrendingDown } from "lucide-react"
 export const dynamic = "force-dynamic"
 
 export default async function CashClosingPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Transactions", "Cash Closing")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
 

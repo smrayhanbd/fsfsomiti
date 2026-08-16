@@ -2,10 +2,16 @@ import prisma from "@/lib/prisma"
 import { calculateDues } from "@/lib/dueCalculator"
 import PageHeader from "@/components/somiti/PageHeader"
 import DueListClient from "./DueListClient"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = 'force-dynamic'
 
 export default async function DueListPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Transactions", "Members Due List")
+
+
   // 1. Fetch all active members and fee setups
   const dbMembers = await prisma.member.findMany({
     where: { status: "ACTIVE" },

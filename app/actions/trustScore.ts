@@ -16,6 +16,18 @@ import {
   getKpiConfig,
   invalidateKpiConfigCache,
 } from "@/lib/trustScore"
+import { getCurrentUser } from "@/lib/permissions"
+import { requireAction, canPerformAction } from "@/lib/auth-guard"
+
+// Permission scope — Trust Score pages live under Member Management.
+const SCOPE_SCORE = {
+  menuGroup: "Member Management",
+  page: "Score Settings",
+} as const
+const SCOPE_MEMBER = {
+  menuGroup: "Member Management",
+  page: "Member Panel",
+} as const
 
 // =====================================================================
 // REACTIVATE A SUSPENDED MEMBER (FRS §9.2)
@@ -23,6 +35,16 @@ import {
 // reactivation threshold; the orchestrator lifts the suspension status.
 // =====================================================================
 export async function reactivateMember(memberId: string) {
+  const user = await getCurrentUser()
+  if (!user) throw new Error("You must be signed in.")
+
+  // Member reactivation is a member-management action.
+  try {
+    await requireAction(user, SCOPE_MEMBER.menuGroup, SCOPE_MEMBER.page, "approve_member")
+  } catch (e) {
+    throw e instanceof Error ? e : new Error("Authorization failed")
+  }
+
   const member = await prisma.member.findUnique({
     where: { id: memberId },
     select: { status: true, trustScore: true },
@@ -57,6 +79,16 @@ export async function reactivateMember(memberId: string) {
 // triggers a background batch recalc across all members (FRS §20 edge case).
 // =====================================================================
 export async function saveKpiConfig(formData: FormData) {
+  const user = await getCurrentUser()
+  if (!user) throw new Error("You must be signed in.")
+
+  // KPI configuration is a Score Settings admin action.
+  try {
+    await requireAction(user, SCOPE_SCORE.menuGroup, SCOPE_SCORE.page, "edit_config")
+  } catch (e) {
+    throw e instanceof Error ? e : new Error("Authorization failed")
+  }
+
   const data = {
     depositWeight: parseInt((formData.get("depositWeight") as string) || "0", 10),
     loanWeight: parseInt((formData.get("loanWeight") as string) || "0", 10),
@@ -139,8 +171,31 @@ export async function saveKpiConfig(formData: FormData) {
   redirect("/dashboard/trust-score/config")
 }
 
-/** Mark all of a member's score notifications as read (used by the portal). */
+/**
+ * Mark all of a member's score notifications as read (used by the portal).
+ *
+ * Self-service — members can dismiss their OWN notifications only. The
+ * memberId is checked against the signed-in member's session so a member
+ * can't dismiss another member's notifications.
+ */
 export async function markNotificationsRead(memberId: string) {
+  const user = await getCurrentUser()
+  if (!user) throw new Error("You must be signed in.")
+
+  // Admin/super-admin bypasses the self-check — they can dismiss any member's
+  // notifications from the dashboard.
+  const isSuper = await canPerformAction(user, "System & Settings", "User Control", "manage_permissions")
+  if (!isSuper) {
+    // For member portal logins, session.user.id IS the memberId (see lib/auth.ts).
+    // Verify the signed-in member is dismissing their OWN notifications.
+    const { getServerSession } = await import("next-auth")
+    const { authOptions } = await import("@/lib/auth")
+    const session = await getServerSession(authOptions)
+    if (session?.user?.role !== "MEMBER" || session.user.id !== memberId) {
+      throw new Error("You can only dismiss your own notifications.")
+    }
+  }
+
   await prisma.memberNotification.updateMany({
     where: { memberId, isRead: false },
     data: { isRead: true },

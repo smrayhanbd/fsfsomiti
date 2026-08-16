@@ -7,7 +7,7 @@
 // The deep CJS path ships no .d.ts, so the constructor is imported untyped and
 // cast to the @types/pdfkit constructor shape. The document instance type is
 // derived from the typed `"pdfkit"` module via InstanceType.
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+ 
 // @ts-expect-error — no type declarations for the deep CJS path.
 import PDFDocumentConstructor from "pdfkit/js/pdfkit.js"
 import type { ReceiptPayload } from "@/lib/pdf/receipt-payload"

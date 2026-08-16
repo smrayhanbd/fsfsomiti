@@ -1,5 +1,13 @@
 import prisma from "@/lib/prisma"
-import { ok, bad, requirePermissionsAdmin, writeRbacAudit, AUDIT } from "@/lib/permissions/api"
+import {
+  ok,
+  bad,
+  requirePermissionsAdmin,
+  preventSelfTarget,
+  preventSuperAdminTarget,
+  writeRbacAudit,
+  AUDIT,
+} from "@/lib/permissions/api"
 import { z } from "zod"
 
 export const dynamic = "force-dynamic"
@@ -39,6 +47,30 @@ export async function POST(
   const body = await request.json().catch(() => null)
   const parsed = AddOverrideSchema.safeParse(body)
   if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "Invalid input.")
+
+  // ── Anti-privilege-escalation guards ──────────────────────────────────
+  // 1. No self-targeting — prevents a user from granting themselves an ALLOW override.
+  const selfCheck = preventSelfTarget(auth, userId)
+  if (selfCheck) {
+    await writeRbacAudit({
+      actorId: auth.id,
+      targetUserId: userId,
+      action: AUDIT.PRIVILEGE_ESCALATION_BLOCKED,
+      details: { reason: "Self-target override blocked." },
+    }).catch(() => undefined)
+    return selfCheck
+  }
+  // 2. No touching super-admin users.
+  const targetCheck = await preventSuperAdminTarget(auth, userId)
+  if (targetCheck) {
+    await writeRbacAudit({
+      actorId: auth.id,
+      targetUserId: userId,
+      action: AUDIT.PRIVILEGE_ESCALATION_BLOCKED,
+      details: { reason: "Super-admin target override blocked." },
+    }).catch(() => undefined)
+    return targetCheck
+  }
 
   // Resolve the Permission row — by id if given, else by natural key.
   const perm = parsed.data.permissionId

@@ -5,6 +5,7 @@ import { formatBDT, formatDate } from "@/lib/accounting"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import YearCloseButton from "./YearCloseButton"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -20,6 +21,11 @@ export const dynamic = "force-dynamic"
  * short-circuit at the page load so non-super-admins never even see the UI.
  */
 export default async function FinancialYearClosePage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Finance & Accounting", "Trial Balance")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
   if (!isSuperAdmin(user)) {

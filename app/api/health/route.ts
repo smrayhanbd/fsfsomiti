@@ -48,7 +48,7 @@ export async function GET() {
   if (missing.length > 0) {
     // Don't leak WHICH vars are missing in the public response — only that
     // the config is incomplete. The server-side log keeps the names.
-    // eslint-disable-next-line no-console
+     
     console.warn("[/api/health] missing required env vars:", missing.join(", "))
     return NextResponse.json(
       {
@@ -81,7 +81,7 @@ export async function GET() {
     )
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    // eslint-disable-next-line no-console
+     
     console.error("[/api/health] DB ping failed:", message)
     return NextResponse.json(
       {

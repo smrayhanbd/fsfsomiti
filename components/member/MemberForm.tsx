@@ -363,7 +363,7 @@ export default function MemberForm({ mode, member }: MemberFormProps) {
         { name: "Address Info", complete: !!(formData.currentAddress && formData.currentDistrict && formData.permanentAddress && formData.permanentDistrict) },
         { name: "Documents & Signature", complete: !!(formData.idDocumentFile || existingIdDocUrl) && !!(formData.signatureFile || existingSignatureUrl) },
         { name: "Nominees", complete: formData.nominees.length > 0 },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     ], [formData, existingPhotoUrl, existingIdDocUrl, existingSignatureUrl])
     const completedSteps = steps.filter(s => s.complete).length
     const progress = Math.round((completedSteps / steps.length) * 100)

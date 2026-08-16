@@ -6,10 +6,16 @@ import { Badge } from "@/components/ui/badge"
 import prisma from "@/lib/prisma"
 import { ArrowLeft, BarChart3, TrendingUp, Clock, AlertTriangle, CheckCircle2 } from "lucide-react"
 import { format } from "date-fns"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
 export default async function TaskReportsPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Operations & Management", "Task Reports")
+
+
   // Window: tasks created in the last 90 days for the close-rate metric.
   const now = new Date()
   const since = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)

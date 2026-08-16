@@ -17,10 +17,16 @@ import { format, isPast } from "date-fns"
 import prisma from "@/lib/prisma"
 import { ArrowLeft, Trash2, AlertTriangle, CalendarClock, Lock } from "lucide-react"
 import { DeleteTaskButton } from "@/components/tasks/DeleteTaskButton"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
 export default async function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Operations & Management", "All Tasks")
+
+
   const { id } = await params
   const [task, activity, user] = await Promise.all([
     getTaskById(id),

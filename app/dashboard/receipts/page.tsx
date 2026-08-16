@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { getCurrentUser } from "@/lib/permissions"
 import ReceiptLookupClient from "./ReceiptLookupClient"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -14,6 +15,11 @@ export const dynamic = "force-dynamic"
  * lets the admin type/paste a voucher number to jump straight to the receipt.
  */
 export default async function MoneyReceiptsPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Transactions", "Transaction History")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
 

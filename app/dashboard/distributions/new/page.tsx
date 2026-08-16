@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { getCurrentUser } from "@/lib/permissions"
 import prisma from "@/lib/prisma"
 import DistributionBuilder from "@/components/distribution/DistributionBuilder"
+import { guardDashboardPage } from "@/lib/page-guard"
 import {
   getUndistributedInvestmentIncome,
   getDistributableProjectProfit,
@@ -20,6 +21,11 @@ export default async function NewDistributionPage({
 }: {
   searchParams: Promise<{ investmentId?: string; projectId?: string }>
 }) {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Transactions", "Distribute Income")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
   const sp = await searchParams

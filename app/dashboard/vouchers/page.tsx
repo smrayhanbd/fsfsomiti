@@ -1,9 +1,15 @@
 import prisma from "@/lib/prisma"
 import VouchersTable from "./VouchersTable"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
 export default async function VouchersPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Finance & Accounting", "View Vouchers")
+
+
   const entries = await prisma.journalEntry.findMany({
     include: {
       lines: {

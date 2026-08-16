@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 // GET /api/elections/:electionId/certificate
 // Generates a PDF result certificate (spec §47). Uses the existing pdfkit dep.
 

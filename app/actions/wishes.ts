@@ -4,10 +4,27 @@ import prisma from "@/lib/prisma"
 import { Prisma, WishType, WishChannel } from "@prisma/client"
 import { revalidatePath } from "next/cache"
 import { sendSpecialWishesForDate } from "@/lib/specialWishes"
+import { getCurrentUser } from "@/lib/permissions"
+import { requireAction, canPerformAction, authErrorResult } from "@/lib/auth-guard"
+
+// Permission scope — "Special Wishes" page under "Operations & Management".
+const SCOPE = {
+  menuGroup: "Operations & Management",
+  page: "Special Wishes",
+} as const
 
 // ===================== Festival CRUD =====================
 
 export async function addFestival(formData: FormData) {
+  const user = await getCurrentUser()
+  if (!user) throw new Error("You must be signed in.")
+
+  try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "create_wish")
+  } catch (e) {
+    throw e instanceof Error ? e : new Error("Authorization failed")
+  }
+
   const name = formData.get("name") as string
   const month = parseInt(formData.get("month") as string)
   const day = parseInt(formData.get("day") as string)
@@ -25,6 +42,15 @@ export async function addFestival(formData: FormData) {
 }
 
 export async function updateFestival(id: string, formData: FormData) {
+  const user = await getCurrentUser()
+  if (!user) throw new Error("You must be signed in.")
+
+  try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "edit_wish")
+  } catch (e) {
+    throw e instanceof Error ? e : new Error("Authorization failed")
+  }
+
   const name = formData.get("name") as string
   const month = parseInt(formData.get("month") as string)
   const day = parseInt(formData.get("day") as string)
@@ -44,6 +70,15 @@ export async function updateFestival(id: string, formData: FormData) {
 }
 
 export async function toggleFestivalStatus(id: string) {
+  const user = await getCurrentUser()
+  if (!user) throw new Error("You must be signed in.")
+
+  try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "edit_wish")
+  } catch (e) {
+    throw e instanceof Error ? e : new Error("Authorization failed")
+  }
+
   const festival = await prisma.festival.findUnique({ where: { id } })
   if (!festival) throw new Error("Festival not found.")
 
@@ -56,6 +91,15 @@ export async function toggleFestivalStatus(id: string) {
 }
 
 export async function deleteFestival(id: string) {
+  const user = await getCurrentUser()
+  if (!user) throw new Error("You must be signed in.")
+
+  try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "delete_wish")
+  } catch (e) {
+    throw e instanceof Error ? e : new Error("Authorization failed")
+  }
+
   await prisma.festival.delete({ where: { id } })
   revalidatePath("/dashboard/wishes")
 }
@@ -63,6 +107,15 @@ export async function deleteFestival(id: string) {
 // ===================== Manual Send =====================
 
 export async function sendWishesNow() {
+  const user = await getCurrentUser()
+  if (!user) throw new Error("You must be signed in.")
+
+  try {
+    await requireAction(user, SCOPE.menuGroup, SCOPE.page, "send_sms")
+  } catch (e) {
+    throw e instanceof Error ? e : new Error("Authorization failed")
+  }
+
   const summary = await sendSpecialWishesForDate()
   revalidatePath("/dashboard/wishes")
   return summary
@@ -87,6 +140,13 @@ export async function getWishLogs(
   limit = 50,
   filters?: { type?: WishType; channel?: WishChannel; status?: string }
 ): Promise<{ logs: WishLogWithDetails[]; total: number; pages: number }> {
+  const user = await getCurrentUser()
+  if (!user) return { logs: [], total: 0, pages: 0 }
+
+  // Read access — requires page-level view permission.
+  const canView = await canPerformAction(user, SCOPE.menuGroup, SCOPE.page, "send_sms")
+  if (!canView) return { logs: [], total: 0, pages: 0 }
+
   const where: Prisma.SpecialWishLogWhereInput = {}
   if (filters?.type) where.type = filters.type
   if (filters?.channel) where.channel = filters.channel
@@ -121,6 +181,12 @@ export async function getWishLogs(
 }
 
 export async function getWishStats() {
+  const user = await getCurrentUser()
+  if (!user) return { totalSent: 0, todaySent: 0, todayFailed: 0, memberCount: 0, festivalCount: 0 }
+
+  const canView = await canPerformAction(user, SCOPE.menuGroup, SCOPE.page, "send_sms")
+  if (!canView) return { totalSent: 0, todaySent: 0, todayFailed: 0, memberCount: 0, festivalCount: 0 }
+
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 

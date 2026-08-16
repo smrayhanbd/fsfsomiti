@@ -3,10 +3,16 @@ import { notFound } from "next/navigation"
 import LoanDetailClient, { type LoanDetailData } from "./LoanDetailClient"
 import LinkedTasksPanel from "@/components/tasks/LinkedTasksPanel"
 import { listTasks } from "@/app/actions/tasks"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = 'force-dynamic'
 
 export default async function LoanDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Finance & Accounting", "Loan Management")
+
+
   const { id } = await params
 
   const loan = await prisma.loan.findUnique({

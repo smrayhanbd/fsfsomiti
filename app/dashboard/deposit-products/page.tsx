@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 import { plain } from "@/lib/serialize"
 import DepositProductsClient from "./DepositProductsClient"
 import { getCurrentUser, isSuperAdmin } from "@/lib/permissions"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -16,6 +17,11 @@ export const dynamic = "force-dynamic"
  * create/edit/delete buttons when isSuperAdmin is false.
  */
 export default async function DepositProductsPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Transactions", "Fees & Charge Setup")
+
+
   const session = await getServerSession(authOptions)
   if (!session?.user) redirect("/")
 

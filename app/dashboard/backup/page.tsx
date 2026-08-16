@@ -5,6 +5,7 @@ import { getDatabaseStats } from "@/lib/backup"
 import { plain } from "@/lib/serialize"
 import type { BackupRow } from "@/app/actions/backup"
 import BackupClient from "./BackupClient"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -33,6 +34,11 @@ function coerceTableCounts(value: unknown): Record<string, number> {
  * SUPER_ADMIN-only — non-super-admins are bounced back to the dashboard.
  */
 export default async function CloudBackupPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("System & Settings", "Cloud Backup")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
   if (!isSuperAdmin(user)) redirect("/dashboard")

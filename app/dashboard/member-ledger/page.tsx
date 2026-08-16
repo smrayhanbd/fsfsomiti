@@ -3,6 +3,7 @@ import MemberLedgerClient from "./MemberLedgerClient"
 import { getOrganization } from "@/lib/organization"
 import type { MemberStatusLite } from "@/components/MemberSelect"
 import type { Prisma } from "@prisma/client"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -27,6 +28,11 @@ export default async function MemberLedgerPage({
     type?: string
   }>
 }) {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Finance & Accounting", "Member Ledger")
+
+
   const params = await searchParams
   const selectedMemberId = params.memberId || null
   const from = params.from || null

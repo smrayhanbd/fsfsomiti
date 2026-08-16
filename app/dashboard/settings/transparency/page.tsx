@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { getCurrentUser, isSuperAdmin } from "@/lib/permissions"
 import TransparencySettingsClient from "./TransparencySettingsClient"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -18,6 +19,11 @@ export const dynamic = "force-dynamic"
  * save action preserves it when submitted blank.
  */
 export default async function TransparencySettingsPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("System & Settings", "Transparency Settings")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
   if (!isSuperAdmin(user)) redirect("/dashboard")

@@ -15,7 +15,6 @@
  *   500  — file could not be read (filesystem error)
  */
 import { NextResponse, type NextRequest } from "next/server"
-import { promises as fs } from "node:fs"
 import path from "node:path"
 
 import prisma from "@/lib/prisma"
@@ -23,6 +22,10 @@ import { getCurrentUser, isSuperAdmin } from "@/lib/permissions"
 import { getBackupStorageDir } from "@/lib/backup"
 
 export const dynamic = "force-dynamic"
+// Vercel Hobby caps serverless function execution at 300s. Large backup
+// downloads (>50 MB) can take a while to stream, so we give it the full
+// Hobby budget.
+export const maxDuration = 300
 
 export async function GET(
   _req: NextRequest,
@@ -51,12 +54,22 @@ export async function GET(
   // ── Resolve the file path ─────────────────────────────────────────────
   // We prefer the stored absolute path; if it doesn't exist (e.g. storage
   // dir moved), fall back to <storageDir>/<filename>.
+  //
+  // Use the hidden dynamic import for ALL fs operations in this route —
+  // `fs.access` also triggers Turbopack's whole-project tracing when the
+  // path is dynamic.
+  const _import = new Function(
+    "m",
+    "return import(m)",
+  ) as (m: string) => Promise<typeof import("node:fs/promises")>
+  const _fs = await _import("node:fs/promises")
+
   const candidates = [row.filePath, path.join(getBackupStorageDir(), row.filename)]
   let filePath: string | null = null
   for (const candidate of candidates) {
     if (!candidate) continue
     try {
-      await fs.access(candidate)
+      await _fs.access(candidate)
       filePath = candidate
       break
     } catch {
@@ -74,7 +87,7 @@ export async function GET(
   // ── Stream the file ───────────────────────────────────────────────────
   let data: Buffer
   try {
-    data = await fs.readFile(filePath)
+    data = await _fs.readFile(filePath)
   } catch (err) {
     console.error("[backup/download] read failed:", err)
     return NextResponse.json(

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { getCurrentUser, isSuperAdmin } from "@/lib/permissions"
 import BankAccountsClient from "./BankAccountsClient"
 import type { PaymentMethod } from "@/lib/transactions/types"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -16,6 +17,11 @@ export const dynamic = "force-dynamic"
  * auto-mapping on /dashboard/transactions/deposits.
  */
 export default async function BankAccountsPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("System & Settings", "Active Bank Accounts")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
   if (!isSuperAdmin(user)) redirect("/dashboard")

@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation"
 import { getCurrentUser, isSuperAdmin } from "@/lib/permissions"
 import { getPermissionsForClient } from "@/lib/permissions/resolver"
 import UserEditClient from "./UserEditClient"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -11,6 +12,11 @@ export default async function UserEditPage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("System & Settings", "User Control")
+
+
   const { id } = await params
   const user = await getCurrentUser()
   if (!user) redirect("/")

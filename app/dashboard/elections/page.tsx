@@ -6,6 +6,7 @@ import { listElections } from "@/app/actions/elections"
 import { getCurrentUser, hasPermission, PERMISSIONS } from "@/lib/permissions"
 import { ArrowLeft, Plus, Vote, Copy, Eye } from "lucide-react"
 import { redirect } from "next/navigation"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -28,6 +29,11 @@ const STATUS_TONES: Record<string, string> = {
 }
 
 export default async function ElectionsListPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Operations & Management", "Election Management")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/login")
   const canManage = await hasPermission(user.id, PERMISSIONS.ELECTION_MANAGE, user)

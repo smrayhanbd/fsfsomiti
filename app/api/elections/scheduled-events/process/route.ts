@@ -8,32 +8,19 @@
 // Recommended cron: every 5 minutes via Vercel Cron / external scheduler.
 // Auth: CRON_SECRET header (env var) — prevents public invocation.
 
-import { NextResponse } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
 import prisma from "@/lib/prisma"
+import { verifyCronRequest } from "@/lib/cron"
 import { writeElectionAudit } from "@/lib/elections/audit"
 import { dispatchElectionNotification } from "@/lib/elections/notifications"
 
 export const dynamic = "force-dynamic"
 
-export async function POST(request: Request) {
-  // S11 fix: fail-CLOSED when CRON_SECRET is not configured. The previous
-  // logic (`if (CRON_SECRET && secret !== CRON_SECRET)`) left the endpoint
-  // wide-open in any environment that forgot to set the env var. Refuse to
-  // run with a server-error so the misconfiguration is loud and visible.
-  const CRON_SECRET = process.env.CRON_SECRET
-  if (!CRON_SECRET) {
-    console.error("[cron.elections] CRON_SECRET not set — refusing to run. Set it in env.")
-    return NextResponse.json(
-      { error: "Server misconfigured: CRON_SECRET is not set." },
-      { status: 500 }
-    )
-  }
-  const secret =
-    request.headers.get("x-cron-secret") ||
-    new URL(request.url).searchParams.get("secret") ||
-    ""
-  if (secret !== CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 })
+export async function POST(request: NextRequest) {
+  // Auth: fail-closed CRON_SECRET check via the centralized helper.
+  const auth = verifyCronRequest(request)
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status })
   }
 
   const now = new Date()

@@ -1,7 +1,13 @@
 import prisma from "@/lib/prisma"
-import { ok, bad, requirePermissionsAdmin, writeRbacAudit, AUDIT } from "@/lib/permissions/api"
+import {
+  ok,
+  bad,
+  requirePermissionsAdmin,
+  enforceRoleAssignmentGuards,
+  writeRbacAudit,
+  AUDIT,
+} from "@/lib/permissions/api"
 import { z } from "zod"
-
 export const dynamic = "force-dynamic"
 
 const AssignRoleSchema = z.object({ roleId: z.string().min(1) })
@@ -18,6 +24,24 @@ export async function POST(
   const body = await request.json().catch(() => null)
   const parsed = AssignRoleSchema.safeParse(body)
   if (!parsed.success) return bad("Expected { roleId: string }.")
+
+  // ── Anti-privilege-escalation guards ──────────────────────────────────
+  // 1. No self-targeting
+  // 2. No touching super-admin users
+  // 3. No assigning super-admin roles
+  // 4. Privilege ceiling — role's perms must be subset of actor's
+  const guard = await enforceRoleAssignmentGuards(auth, userId, parsed.data.roleId)
+  if (guard instanceof Response) {
+    // Log the blocked attempt for security audit.
+    await writeRbacAudit({
+      actorId: auth.id,
+      targetUserId: userId,
+      targetRoleId: parsed.data.roleId,
+      action: AUDIT.PRIVILEGE_ESCALATION_BLOCKED,
+      details: { reason: "Role assignment guard blocked the operation." },
+    }).catch(() => undefined)
+    return guard
+  }
 
   const [user, role] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { id: true } }),

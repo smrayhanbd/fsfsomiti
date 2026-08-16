@@ -8,6 +8,7 @@ import PageHeader from "@/components/somiti/PageHeader"
 import SectionCard from "@/components/somiti/SectionCard"
 import { formatBDT } from "@/components/somiti/Money"
 import { SOURCE_TYPE_LABELS, STATUS_LABELS } from "@/lib/distribution/types"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -18,6 +19,11 @@ const STATUS_TONE: Record<string, string> = {
 }
 
 export default async function DistributionsPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Transactions", "Distribute Income")
+
+
   const user = await getCurrentUser()
   if (!user) redirect("/")
 

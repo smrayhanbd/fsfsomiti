@@ -3,6 +3,7 @@ import AccountLedgerClient from "./AccountLedgerClient"
 import { getOrganization } from "@/lib/organization"
 import type { AccountType } from "@/lib/accounting"
 import type { Prisma } from "@prisma/client"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -11,6 +12,11 @@ export default async function AccountLedgerPage({
 }: {
   searchParams: Promise<{ accountId?: string; from?: string; to?: string }>
 }) {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Finance & Accounting", "Account Ledger")
+
+
   const params = await searchParams
   const selectedAccountId = params.accountId || null
   const from = params.from || null

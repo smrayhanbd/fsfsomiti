@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { PERMISSIONS, isSuperAdmin } from "@/lib/permissions"
 import { resolveCurrentUser } from "@/app/actions/meeting"
 import MeetingsClient from "./MeetingsClient"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -22,6 +23,11 @@ function eligibleMembersFor(
 }
 
 export default async function MeetingsPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Operations & Management", "Meeting Management")
+
+
   const now = new Date()
 
   const [meetings, members, currentUser, usersWithRoles, allPermissions] = await Promise.all([

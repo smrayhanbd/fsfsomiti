@@ -1,9 +1,15 @@
 import prisma from "@/lib/prisma"
 import LoanApplicationForm from "./LoanApplicationForm"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = 'force-dynamic'
 
 export default async function NewLoanPage() {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Finance & Accounting", "Loan Management")
+
+
   const [products, members] = await Promise.all([
     prisma.loanProduct.findMany({
       where: { isActive: true },

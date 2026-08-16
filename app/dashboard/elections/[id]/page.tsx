@@ -3,10 +3,16 @@ import { redirect } from "next/navigation"
 import { getElection, getElectionAuditLogs, getVotingMonitor, getElectionCandidates, getEligibilityConfig } from "@/app/actions/elections"
 import { getCurrentUser, hasPermission, PERMISSIONS } from "@/lib/permissions"
 import ElectionDetailClient from "./ElectionDetailClient"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
 export default async function ElectionDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Operations & Management", "Election Management")
+
+
   const { id } = await params
   const user = await getCurrentUser()
   if (!user) redirect("/login")

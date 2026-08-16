@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, enabled: true })
   } catch (err) {
-    // eslint-disable-next-line no-console
+     
     console.error("[/api/auth/mfa/verify] failed:", err)
     return NextResponse.json(
       { error: "Failed to verify MFA token" },

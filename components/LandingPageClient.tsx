@@ -225,7 +225,7 @@ export default function LandingPageClient({ content, org }: { content: LandingCo
                 <Building2 className="h-5 w-5" />
               </OrgLogo>
             </div>
-            <span className="t-h3 truncate text-primary-ink sm:max-w-[120px] md:max-w-[200px]" title={org.name}>{org.name}</span>
+            <span className="truncate text-sm font-bold text-primary-ink sm:max-w-[160px] md:max-w-[240px] lg:max-w-[300px]" title={org.name}>{org.name}</span>
           </Link>
 
           {/* Desktop nav — only on lg+ where there's room for all 6 links + buttons */}
@@ -234,7 +234,6 @@ export default function LandingPageClient({ content, org }: { content: LandingCo
             <Link href="#vision" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">Vision</Link>
             <Link href="#pillars" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">What We Do</Link>
             <Link href="#portal" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">Transparency</Link>
-            <Link href="#how" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">How It Works</Link>
             <Link href="#management" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">Management</Link>
             <Link href="#activities" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">Activities</Link>
           </nav>
@@ -263,7 +262,6 @@ export default function LandingPageClient({ content, org }: { content: LandingCo
                   <DropdownMenuItem render={<Link href="#vision" className="flex w-full cursor-pointer items-center p-2" />}>Vision</DropdownMenuItem>
                   <DropdownMenuItem render={<Link href="#pillars" className="flex w-full cursor-pointer items-center p-2" />}>What We Do</DropdownMenuItem>
                   <DropdownMenuItem render={<Link href="#portal" className="flex w-full cursor-pointer items-center p-2" />}>Member Portal</DropdownMenuItem>
-                  <DropdownMenuItem render={<Link href="#how" className="flex w-full cursor-pointer items-center p-2" />}>How It Works</DropdownMenuItem>
                   <DropdownMenuItem render={<Link href="#management" className="flex w-full cursor-pointer items-center p-2" />}>Management</DropdownMenuItem>
                   <DropdownMenuItem render={<Link href="/policy" className="flex w-full cursor-pointer items-center p-2" />}>Policy</DropdownMenuItem>
                   <DropdownMenuItem render={<Link href="/login" className="flex w-full cursor-pointer items-center p-2" />}>Login</DropdownMenuItem>
@@ -453,8 +451,9 @@ export default function LandingPageClient({ content, org }: { content: LandingCo
         </section>
       )}
 
-      {/* ─── About Us ─── */}
+      {/* ─── About Us + Vision (side by side) ─── */}
       <section id="about" className="section-tint-blue relative overflow-hidden py-12 sm:py-20 lg:py-24">
+        <span id="vision" className="absolute -top-16" />
         <div className="pointer-events-none absolute top-20 right-0 h-96 w-96 rounded-full bg-[var(--brand-gold)] opacity-[0.08] blur-3xl" />
         <div className="pointer-events-none absolute bottom-10 left-10 h-72 w-72 rounded-full bg-[#3b82f6] opacity-[0.06] blur-3xl" />
         <div className="mx-auto grid max-w-7xl items-start gap-8 px-4 sm:gap-12 sm:px-6 lg:grid-cols-2 lg:gap-16 lg:px-8">
@@ -474,72 +473,28 @@ export default function LandingPageClient({ content, org }: { content: LandingCo
           </motion.div>
 
           <motion.div
-            className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5"
             initial={{ opacity: 0, x: 50 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: false, amount: 0.2 }}
             transition={{ duration: 0.6, ease: "easeOut" }}
           >
-            {(content.facilities ?? []).length > 0 ? (
-              (content.facilities ?? []).map((fac, i) => (
-                <div key={i} className="card-premium card-premium-hover h-full overflow-hidden p-6">
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-gradient-soft text-brand">
-                    <NamedIcon name={fac.icon} className="h-6 w-6" />
-                  </div>
-                  <h4 className="t-h3 mb-2 text-primary-ink">{fac.title}</h4>
-                  {fac.description && (
-                    <div className="prose max-w-none t-body text-justify text-muted-ink dark:prose-invert" dangerouslySetInnerHTML={{ __html: fac.description }} />
-                  )}
-                </div>
-              ))
-            ) : (
-              // Default facility cards when admin hasn't filled them
-              [
-                { icon: "Landmark", title: "Bank-Grade Security", description: "AES-256 encryption, audit trails, and dual-control approvals on every transaction." },
-                { icon: "Eye", title: "Real-Time Transparency", description: "Live ledger, public bank statements, and signed meeting minutes — always." },
-                { icon: "Vote", title: "Democratic Governance", description: "Members elect the management committee through secure online voting." },
-                { icon: "BellRing", title: "Instant Notifications", description: "SMS + email alerts on every deposit, withdrawal, and approval event." },
-              ].map((fac, i) => (
-                <div key={i} className="card-premium card-premium-hover h-full overflow-hidden p-6">
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-gradient-soft text-brand">
-                    <NamedIcon name={fac.icon} className="h-6 w-6" />
-                  </div>
-                  <h4 className="t-h3 mb-2 text-primary-ink">{fac.title}</h4>
-                  <p className="t-body text-justify text-muted-ink">{fac.description}</p>
-                </div>
-              ))
-            )}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ─── Our Vision & Mission ─── */}
-      <section id="vision" className="section-tint-amber relative overflow-hidden py-12 sm:py-20 lg:py-24">
-        <div className="pointer-events-none absolute top-0 left-1/4 h-80 w-80 rounded-full bg-[#f59e0b] opacity-[0.1] blur-3xl" />
-        <div className="pointer-events-none absolute bottom-0 right-1/4 h-80 w-80 rounded-full bg-[#ef4444] opacity-[0.06] blur-3xl" />
-        <div className="relative mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-          <motion.div
-            className="text-center"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: false, amount: 0.3 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl brand-gradient text-white shadow-brand-glow">
-              <ShieldCheck className="h-8 w-8" />
+            <div className="card-premium h-full overflow-hidden p-8">
+              <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl brand-gradient text-white shadow-brand-glow">
+                <ShieldCheck className="h-7 w-7" />
+              </div>
+              <p className="t-overline mb-2 text-brand">Our Vision</p>
+              <h3 className="t-h2 mb-4 text-primary-ink">
+                {content.visionTitle || "Our Vision & Mission"}
+              </h3>
+              {content.visionContent ? (
+                <div className="prose prose-lg max-w-none text-justify text-secondary-ink dark:prose-invert" dangerouslySetInnerHTML={{ __html: content.visionContent }} />
+              ) : (
+                <p className="t-body-lg text-justify text-muted-ink">
+                  To build a financially resilient community where every member has access to transparent,
+                  fair, and modern financial services — fostering growth, dignity, and prosperity for all.
+                </p>
+              )}
             </div>
-            <p className="t-overline mb-3 text-brand">Our Vision</p>
-            <h2 className="t-display mb-8 text-primary-ink">
-              {content.visionTitle || "Our Vision & Mission"}
-            </h2>
-            {content.visionContent ? (
-              <div className="prose prose-lg mx-auto max-w-3xl text-justify text-secondary-ink dark:prose-invert md:text-center" dangerouslySetInnerHTML={{ __html: content.visionContent }} />
-            ) : (
-              <p className="t-body-lg mx-auto max-w-2xl text-justify text-muted-ink">
-                To build a financially resilient community where every member has access to transparent savings,
-                fair loans, and shared prosperity — guided by trust, accountability, and mutual growth.
-              </p>
-            )}
           </motion.div>
         </div>
       </section>
@@ -680,46 +635,6 @@ export default function LandingPageClient({ content, org }: { content: LandingCo
             <span className="flex items-center gap-2"><BellRing className="h-4 w-4" /> SMS + email alerts</span>
           </div>
         </motion.div>
-      </section>
-
-      {/* ─── How It Works ─── */}
-      <section id="how" className="section-tint-blue-rev relative overflow-hidden py-12 sm:py-20 lg:py-24">
-        <div className="pointer-events-none absolute top-1/2 left-0 h-96 w-96 -translate-y-1/2 rounded-full bg-[#3b82f6] opacity-[0.08] blur-3xl" />
-        <div className="pointer-events-none absolute bottom-0 right-0 h-80 w-80 rounded-full bg-[#06b6d4] opacity-[0.06] blur-3xl" />
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <motion.div
-            className="mx-auto mb-8 max-w-2xl text-center sm:mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: false, amount: 0.3 }}
-            transition={{ duration: 0.5 }}
-          >
-            <p className="t-overline mb-3 text-brand">How It Works</p>
-            <h2 className="t-display mb-4 text-primary-ink">From signup to your first dividend</h2>
-            <p className="t-body-lg text-justify text-muted-ink">Five simple steps. No paperwork, no queues, no surprises.</p>
-          </motion.div>
-
-          <div className="relative grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-10 lg:grid-cols-5">
-            {howItWorks.map((s, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: false, amount: 0.2 }}
-                transition={{ duration: 0.4, delay: i * 0.08 }}
-                className="relative step-connector text-center"
-              >
-                <div className="relative z-10 mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl brand-gradient text-white text-xl font-bold shadow-brand-glow">
-                  {s.step ?? i + 1}
-                </div>
-                <h3 className="t-h3 mb-2 text-primary-ink">{s.title}</h3>
-                {s.description && (
-                  <p className="t-body text-justify text-muted-ink">{s.description}</p>
-                )}
-              </motion.div>
-            ))}
-          </div>
-        </div>
       </section>
 
       {/* ─── Management Committee ─── */}

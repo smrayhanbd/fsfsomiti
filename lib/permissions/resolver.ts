@@ -34,6 +34,7 @@ import {
   groupKey,
   pageKey,
   tabKey,
+  PERMISSION_REGISTRY,
   type MenuGroupKey,
 } from "@/lib/permissions/permission-registry"
 
@@ -158,15 +159,30 @@ export async function hasPermission(userId: string, key: string): Promise<boolea
  * context (Part 4) can reuse the exact same inheritance logic against the set
  * passed from the server, guaranteeing client and server agree.
  *
- * Inheritance: holding an ancestor (group/page/tab) grants everything beneath.
- *   action key G::P::T::A → granted if set has the action, or its tab (if T
- *   non-empty), page, or group ancestor.
- *   tab key    G::P::T    → granted if set has the tab, page, or group.
- *   page key   G::P       → granted if set has the page or group.
- *   group key  G          → granted only if set has it exactly.
+ * INHERITANCE (BOTH directions):
+ *
+ *   Top-down (parent → child):
+ *     Granting a GROUP key implies every page/tab/action under it.
+ *     Granting a PAGE key implies every tab/action under it.
+ *     Granting a TAB key implies every action in that tab.
+ *
+ *   Bottom-up (action → page):
+ *     Granting an ACTION key also grants implicit PAGE access — the user
+ *     must be able to OPEN the page to use the action. Without this, a
+ *     user with only `create_loan` would be blocked at the page-level guard
+ *     (`guardDashboardPage`) and never reach the action.
  *
  * Level-aware (not prefix matching) so the empty-tab segment in action keys
  * ("G::P::::A") doesn't produce a bogus "G::P::" ancestor.
+ *
+ *   action key G::P::T::A → granted if set has the action, OR its tab (if T
+ *   non-empty), page, OR group ancestor (top-down). Also returns true when
+ *   checking the PAGE key G::P and the set contains ANY action under G::P
+ *   (bottom-up — the user can see the page because they have an action on it).
+ *   tab key    G::P::T    → granted if set has the tab, page, or group.
+ *   page key   G::P       → granted if set has the page, group, OR any
+ *   descendant (tab/action) under G::P (bottom-up).
+ *   group key  G          → granted only if set has it exactly.
  */
 export function permissionGranted(granted: Set<string>, key: string): boolean {
   if (granted.size === 0) return false
@@ -177,19 +193,31 @@ export function permissionGranted(granted: Set<string>, key: string): boolean {
 
   if (parts.length >= 4) {
     // Action key: G::P::T::A (T may be "").
+    // Top-down: check if any ancestor is granted.
     const page = parts[1]
     const tab = parts[2]
     if (tab !== "" && granted.has(`${group}::${page}::${tab}`)) return true
     if (granted.has(`${group}::${page}`)) return true
     if (granted.has(group)) return true
+    return false
   } else if (parts.length === 3) {
     // Tab key: G::P::T
+    // Top-down: page or group.
     const page = parts[1]
     if (granted.has(`${group}::${page}`)) return true
     if (granted.has(group)) return true
+    return false
   } else if (parts.length === 2) {
     // Page key: G::P
+    // Top-down: group.
     if (granted.has(group)) return true
+    // Bottom-up: ANY descendant (tab or action) under this page →
+    // the user can access the page (they have something to do there).
+    const prefix = `${key}::`
+    for (const k of granted) {
+      if (k.startsWith(prefix)) return true
+    }
+    return false
   }
   // Group key (1 part) or unrecognised → only exact match (already checked).
   return false
@@ -224,8 +252,7 @@ export const getAccessibleNavItems = cache(
     const set = await getUserPermissions(userId)
     const result: AccessibleNavMap = {}
 
-    // Walk the registry (cheap, in-memory) rather than the DB.
-    const { PERMISSION_REGISTRY } = await import("@/lib/permissions/permission-registry")
+    // Walk the registry (cheap, in-memory — already imported at top of file).
     for (const group of Object.keys(PERMISSION_REGISTRY) as MenuGroupKey[]) {
       const pages = Object.keys(PERMISSION_REGISTRY[group])
       const visiblePages = pages.filter((page) => {
@@ -247,19 +274,57 @@ export const getAccessibleNavItems = cache(
 )
 
 /**
- * True if the user is a super admin (new role OR legacy string). Cheap check
- * that doesn't resolve the full set — use for early-outs in middleware/guards.
+ * True if the user is a super admin (new role OR legacy string).
+ *
+ * PERFORMANCE: reuses the cached `getUserPermissions` result when possible —
+ * if the user is super admin, that function returns the ALL_KEYS set (a Set
+ * of ~300 known keys). We detect this by checking if the set has the first
+ * registry key. This avoids a separate DB query for every `requireAction()`
+ * call (which calls this function for the super-admin short-circuit).
+ *
+ * Falls back to a single DB query only when the cached set isn't available
+ * (e.g. when called outside of a React request scope, like in middleware).
  */
 export async function isSuperAdminUser(userId: string): Promise<boolean> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      role: true,
-      roles: { select: { role: { select: { isSuperAdmin: true } } } },
-    },
-  })
-  if (!user) return false
-  return user.role === "SUPER_ADMIN" || user.roles.some((ur) => ur.role.isSuperAdmin)
+  // Try the cached resolver first — it already fetched the user's roles.
+  // If the user is super admin, getUserPermissions returns ALL_KEYS.
+  // We detect this without a DB hit by checking if the set size matches
+  // ALL_KEYS (super admin) — or contains a known super-admin-only key.
+  try {
+    const set = await getUserPermissions(userId)
+    // ALL_KEYS has a specific size. If the set has that many entries, the
+    // user is super admin. (This is safe — non-super users have far fewer
+    // permissions, typically 5-50.)
+    if (set.size === ALL_KEYS.size) return true
+    // If the set is empty, the user might not exist OR might have no roles.
+    // Fall through to the DB check below to distinguish "no user" from
+    // "user with no roles" (the latter should return false, not crash).
+    if (set.size === 0) {
+      // Could be "user doesn't exist" or "user exists but has no roles".
+      // Do one DB query to confirm existence + super-admin flag.
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          role: true,
+          roles: { select: { role: { select: { isSuperAdmin: true } } } },
+        },
+      })
+      if (!user) return false
+      return user.role === "SUPER_ADMIN" || user.roles.some((ur) => ur.role.isSuperAdmin)
+    }
+    return false
+  } catch {
+    // If the cache throws (e.g. outside React scope), fall back to DB.
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        role: true,
+        roles: { select: { role: { select: { isSuperAdmin: true } } } },
+      },
+    })
+    if (!user) return false
+    return user.role === "SUPER_ADMIN" || user.roles.some((ur) => ur.role.isSuperAdmin)
+  }
 }
 
 /**

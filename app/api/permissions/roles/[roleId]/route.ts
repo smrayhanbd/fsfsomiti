@@ -1,5 +1,12 @@
 import prisma from "@/lib/prisma"
-import { ok, bad, requirePermissionsAdmin, writeRbacAudit, AUDIT } from "@/lib/permissions/api"
+import {
+  ok,
+  bad,
+  requirePermissionsAdmin,
+  preventSuperAdminRole,
+  writeRbacAudit,
+  AUDIT,
+} from "@/lib/permissions/api"
 import { z } from "zod"
 
 export const dynamic = "force-dynamic"
@@ -17,6 +24,10 @@ export async function PATCH(
   const auth = await requirePermissionsAdmin()
   if (auth instanceof Response) return auth
   const { roleId } = await params
+
+  // Anti-escalation: only super admins can modify super-admin-flagged roles.
+  const roleGuard = await preventSuperAdminRole(auth, roleId)
+  if (roleGuard instanceof Response) return roleGuard
 
   const role = await prisma.role.findUnique({ where: { id: roleId } })
   if (!role) return bad("Role not found.", 404)
@@ -63,6 +74,10 @@ export async function DELETE(
   const auth = await requirePermissionsAdmin()
   if (auth instanceof Response) return auth
   const { roleId } = await params
+
+  // Anti-escalation: only super admins can delete super-admin-flagged roles.
+  const roleGuard = await preventSuperAdminRole(auth, roleId)
+  if (roleGuard instanceof Response) return roleGuard
 
   const role = await prisma.role.findUnique({
     where: { id: roleId },

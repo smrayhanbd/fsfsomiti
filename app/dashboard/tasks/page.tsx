@@ -8,6 +8,7 @@ import TaskKanban from "@/components/tasks/TaskKanban"
 import TaskCalendar from "@/components/tasks/TaskCalendar"
 import TaskFilterBar from "@/components/tasks/TaskFilterBar"
 import { Plus, CheckSquare, ListChecks, CalendarDays, LayoutGrid, AlertTriangle, Clock, CheckCircle2 } from "lucide-react"
+import { guardDashboardPage } from "@/lib/page-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -16,6 +17,11 @@ export default async function TasksHubPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
+  // Page-level permission guard — redirects to /dashboard/unauthorized
+  // if the user doesn't have access to this page.
+  await guardDashboardPage("Operations & Management", "All Tasks")
+
+
   const sp = await searchParams
   const q = typeof sp.q === "string" ? sp.q : undefined
   const status = typeof sp.status === "string" ? sp.status : undefined
