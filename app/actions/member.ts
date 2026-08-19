@@ -41,6 +41,48 @@ function prismaErrorMeta(e: unknown): { code?: string; target?: string[] } {
   return {}
 }
 
+/**
+ * Re-sync the `member` Counter row with the actual max numeric part of
+ * `Member.memberNo` in the database. Used as a self-healing recovery path
+ * when a P2002 unique-constraint collision on `memberNo` happens — which
+ * means the Counter is out of sync with the actual Member table (typically
+ * because members were inserted manually/seeded without updating the
+ * Counter, or a previous transaction partially committed).
+ *
+ * Sets Counter.value = max(current_counter_value, max_member_no_numeric_part)
+ * so the NEXT increment produces a memberNo that is guaranteed unique.
+ *
+ * Returns the new Counter.value so the caller can immediately use it.
+ */
+async function resyncMemberCounter(): Promise<number> {
+  return directPrisma.$transaction(async (tx) => {
+    // Find the maximum numeric part of any existing memberNo. memberNo has
+    // the shape "M####" (M + zero-padded number), so we strip the leading
+    // "M" and parse the rest as an integer.
+    const rows = await tx.$queryRaw<Array<{ max_no: number | null }>>`
+      SELECT COALESCE(MAX(CAST(SUBSTRING("memberNo", 2) AS INTEGER)), 0) AS max_no
+      FROM "Member"
+      WHERE "memberNo" ~ '^M[0-9]+$'  -- only rows matching the M#### pattern
+    `
+    const maxMemberNo = rows[0]?.max_no ?? 0
+
+    // Current counter value (may be missing — start from 0)
+    const current = await tx.counter.findUnique({ where: { id: "member" } })
+    const currentVal = current?.value ?? 0
+
+    // New value = whichever is higher. This GUARANTEES the next increment
+    // produces a memberNo that does not collide with any existing one.
+    const newVal = Math.max(maxMemberNo, currentVal)
+
+    await tx.counter.upsert({
+      where: { id: "member" },
+      update: { value: newVal },
+      create: { id: "member", value: newVal },
+    })
+    return newVal
+  })
+}
+
 // --- Add Member Action ---
 export async function addMember(formData: FormData, isPublic: boolean = false) {
   // Public self-registration does not require an authed user; admin-side
@@ -203,10 +245,16 @@ export async function addMember(formData: FormData, isPublic: boolean = false) {
   // Counter row is incremented atomically with the Member insert (B2: the
   // old `count+1` raced under concurrent registrations and collided on the
   // `memberNo` @unique constraint).
+  //
+  // SELF-HEALING (2026-08-19): if memberNo collides (P2002 on `memberNo`),
+  // the Counter is out of sync with the actual Member table. We resync
+  // from MAX(memberNo) and retry the WHOLE transaction ONCE. This ensures
+  // users never see "DUPLICATE_MEMBER_NO" caused by a stale Counter, while
+  // still failing on real duplicates (e.g., NID collisions).
   // 4. Save to Database (Fast transaction with no network uploads inside)
   let member: Prisma.MemberGetPayload<Record<string, never>>
   try {
-    member = await directPrisma.$transaction(async (tx) => {
+    const runCreateTx = () => directPrisma.$transaction(async (tx) => {
       // B2/B18: atomic Counter increment for memberNo.
       const counter = await tx.counter.upsert({
         where: { id: "member" },
@@ -267,6 +315,20 @@ export async function addMember(formData: FormData, isPublic: boolean = false) {
 
       return newMember
     })
+
+    try {
+      member = await runCreateTx()
+    } catch (error) {
+      // Self-heal: memberNo collision means the Counter is out of sync
+      // with the Member table. Resync and retry the WHOLE transaction once.
+      const { code, target } = prismaErrorMeta(error)
+      if (code === 'P2002' && target?.includes('memberNo')) {
+        await resyncMemberCounter()
+        member = await runCreateTx()
+      } else {
+        throw error
+      }
+    }
   } catch (error) {
     const { code, target } = prismaErrorMeta(error)
     if (code === 'P2002') {

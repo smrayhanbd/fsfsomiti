@@ -41,9 +41,11 @@ import { PrismaClient } from '@prisma/client'
 
 /**
  * Inject `connection_limit`, `pool_timeout` and (for Supabase's transaction
- * pooler) `pgbouncer=true` & `pgbouncer_no_instrument=true` into the
- * connection URL. Doing this in code (not just .env) means a future developer
- * can't accidentally regress by copying a bare URL from Supabase's dashboard.
+ * pooler) `pgbouncer=true` into the connection URL. Doing this in code (not
+ * just .env) means a future developer can't accidentally regress by copying
+ * a bare URL from Supabase's dashboard. Does NOT inject
+ * `pgbouncer_no_instrument` (Supabase mentions it, but Prisma's URL parser
+ * fails on multi-param query strings).
  *
  * If the URL already contains these params, the existing values are kept.
  */
@@ -70,12 +72,12 @@ function tuneConnectionUrl(rawUrl: string | undefined, opts: {
     if (opts.forcePgBouncer && !p.has('pgbouncer')) {
       p.set('pgbouncer', 'true')
     }
-    // Supabase/PgBouncer: Prisma's prepared-statement cache collides with
-    // PgBouncer's transaction-mode multiplexing unless we tell it to skip
-    // them. See https://www.prisma.io/docs/guides/database/supabase
-    if (opts.forcePgBouncer && !p.has('pgbouncer_no_instrument')) {
-      p.set('pgbouncer_no_instrument', 'true')
-    }
+    // NOTE: do NOT add pgbouncer_no_instrument here. Despite Supabase docs
+    // mentioning it, Prisma 6.x's URL parser mis-parses multi-param query
+    // strings and emits "invalid port number in database URL" errors when
+    // too many params are present. Prisma's own pgbouncer=true handling
+    // already disables prepared statements on the pooled client, which is
+    // the behaviour Supabase wants from pgbouncer_no_instrument anyway.
 
     // Always emit a connection_limit on the direct URL too — without it, a
     // migration or interactive transaction can still hog the whole backend

@@ -130,10 +130,23 @@ been.
 
 ### `.env` (corrected)
 
-- `DATABASE_URL` now uses **port 6543** with
-  `?pgbouncer=true&pgbouncer_no_instrument=true&connection_limit=10&pool_timeout=30`.
-- `DIRECT_URL` stays on **port 5432** with
-  `?connection_limit=5&pool_timeout=60`.
+- `DATABASE_URL` uses **port 6543** with the **bare URL only** — no query
+  params. Query params (`?pgbouncer=true&connection_limit=10&pool_timeout=30`)
+  are intentionally NOT in `.env` because Prisma 6.x has a URL-parser bug
+  that throws `"invalid port number in database URL"` when the URL contains
+  a multi-param query string (especially with `pgbouncer_no_instrument`).
+- `DIRECT_URL` stays on **port 5432** — also bare URL, no query params.
+- The required query params are injected at runtime by
+  `lib/prisma.ts:tuneConnectionUrl()`, which uses Node's `URL` class
+  (correct, spec-compliant) instead of Prisma's parser.
+
+> **Why this matters:** Supabase's dashboard suggests adding
+> `?pgbouncer=true&pgbouncer_no_instrument=true` to the URL. The first
+> param is correct. The second one (`pgbouncer_no_instrument`) is NOT a
+> real Prisma param — it's a Supabase-specific PgBouncer directive that
+> Prisma's URL parser doesn't recognize. When combined with other params,
+> the parser fails with "invalid port number". The fix: omit all query
+> params from `.env` and let `lib/prisma.ts` add only the valid ones.
 
 ### `.env.example` (new file)
 
