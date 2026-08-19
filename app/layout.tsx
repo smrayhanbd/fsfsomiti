@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Inter, Plus_Jakarta_Sans } from "next/font/google"
 import "./globals.css"
 import Providers from "@/components/Providers"
@@ -45,9 +45,6 @@ export async function generateMetadata(): Promise<Metadata> {
     // placeholder paths; drop real PNG icons into /public to enable the
     // install prompt and home-screen icon.
     manifest: "/manifest.json",
-    // Web app theme colour — used by Android Chrome for the status bar tint
-    // and by iOS Safari for the apple-touch-title bar. Mirrors manifest.json.
-    themeColor: "#C9A84C",
     // Apple-specific — iOS doesn't honour manifest.json's `display: standalone`
     // without these tags, so the user gets an ugly browser chrome at the top.
     appleWebApp: {
@@ -60,6 +57,13 @@ export async function generateMetadata(): Promise<Metadata> {
       apple: "/icon-192.png",
     },
   }
+}
+
+// Web app theme colour — used by Android Chrome for the status bar tint
+// and by iOS Safari for the apple-touch-title bar. Mirrors manifest.json.
+// Lives in a Viewport export (not Metadata) per the App Router convention.
+export const viewport: Viewport = {
+  themeColor: "#C9A84C",
 }
 
 export default async function RootLayout({

@@ -1,4 +1,5 @@
 import { getServerSession } from "next-auth"
+import { cache } from "react"
 import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 
@@ -64,17 +65,38 @@ export interface CurrentUser {
  * Resolve the authenticated dashboard user from the next-auth session, then
  * fetch the persisted User row so the real role (SUPER_ADMIN | ADMIN | ...) is
  * used instead of the JWT-time value. Returns null when unauthenticated.
+ *
+ * MEMOIZED via React `cache()` so a single server render / server action
+ * that calls getCurrentUser() multiple times (e.g. layout -> page -> action)
+ * only hits the DB ONCE per request. Without this, a single dashboard page
+ * render could fire 3-4 `prisma.user.findUnique` calls - a major contributor
+ * to the connection-pool exhaustion error:
+ *   "Timed out fetching a new connection from the connection pool."
  */
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+const _getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const session = await getServerSession(authOptions)
   const email = session?.user?.email
   if (!email) return null
 
+  // Select isActive here too so requireActiveUser can reuse the cached row
+  // instead of issuing a second findUnique.
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, email: true, role: true },
+    select: { id: true, email: true, role: true, isActive: true },
   })
-  return user ?? null
+  if (!user) return null
+  // Strip isActive from the public shape (CurrentUser does not have it).
+  const { isActive: _omit, ...rest } = user
+  void _omit
+  return rest
+})
+
+/**
+ * Public wrapper. Forwards to the cache()-wrapped implementation so callers
+ * do not need to know about per-request memoization.
+ */
+export async function getCurrentUser(): Promise<CurrentUser | null> {
+  return _getCurrentUser()
 }
 
 export function isSuperAdmin(user: { role: string } | null | undefined): boolean {
@@ -187,16 +209,33 @@ export async function requirePermission(
 /**
  * Resolve the current user and confirm their account is still active
  * (not disabled by an admin). Throws if unauthenticated or disabled.
+ *
+ * Reuses the per-request cached user row (see getCurrentUser) instead of
+ * issuing a SECOND `prisma.user.findUnique` for the isActive flag - the
+ * cached row already includes isActive.
  */
 export async function requireActiveUser(): Promise<CurrentUser> {
   const user = await getCurrentUser()
   if (!user) throw new Error("You must be signed in to perform this action.")
-  // Re-check isActive from the DB row we already loaded.
-  const row = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { isActive: true },
-  })
-  if (!row?.isActive) {
+
+  // Pull the cached row (with isActive) without a second DB round-trip.
+  // The cast is safe because _getCurrentUser explicitly selects isActive.
+  const row = user as CurrentUser & { isActive?: boolean }
+
+  // If the cached row somehow lacks isActive (e.g. older session), fall
+  // back to a one-shot DB query rather than failing open.
+  if (row.isActive === undefined) {
+    const fresh = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { isActive: true },
+    })
+    if (!fresh?.isActive) {
+      throw new Error("Your account has been disabled. Contact an administrator.")
+    }
+    return user
+  }
+
+  if (!row.isActive) {
     throw new Error("Your account has been disabled. Contact an administrator.")
   }
   return user

@@ -1,5 +1,6 @@
 /**
- * Edge middleware — route protection + role-based routing.
+ * Proxy (Next.js 16 renamed the "middleware" convention to "proxy") —
+ * route protection + role-based routing.
  *
  * Uses `withAuth` from `next-auth/middleware` (the officially recommended
  * approach for NextAuth v4) instead of `getToken` from `next-auth/jwt`.
@@ -21,7 +22,7 @@ import { withAuth } from "next-auth/middleware"
 import { NextResponse } from "next/server"
 
 export default withAuth(
-  function middleware(req) {
+  function proxy(req) {
     const path = req.nextUrl.pathname
     const role = req.nextauth.token?.role as string | undefined
 
