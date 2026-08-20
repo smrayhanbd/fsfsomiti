@@ -935,11 +935,24 @@ export async function resetMemberCredentials(
     revalidatePath(`/dashboard/members/${memberId}`)
     revalidatePath("/dashboard/members")
     // Audit log — record who reset whose credentials.
+    //
+    // FIX (FK violation on `AuditLog_targetUserId_fkey`):
+    // The previous call passed `targetUserId: member.id`, but `member.id`
+    // is the PK of the Member table — NOT the User table. AuditLog.targetUserId
+    // has a FK to `User.id`, so any non-admin member id trips a foreign-key
+    // violation and the whole resetMemberCredentials server action rolls back
+    // (returning the misleading "Could not send credentials" error).
+    //
+    // Members are a separate entity from RBAC Users (admins); they don't have
+    // a row in `User`. The audit row's `targetUserId`/`targetRoleId` columns
+    // are nullable for exactly this case. We therefore leave both null and
+    // put the member reference inside `details` (alongside memberNo + channels)
+    // so the audit trail still has the full target context.
     await writeRbacAudit({
       actorId: user.id,
-      targetUserId: member.id,
+      // targetUserId intentionally omitted — see comment above.
       action: "MEMBER_CREDENTIALS_RESET",
-      details: { memberNo: member.memberNo, channels },
+      details: { memberId: member.id, memberNo: member.memberNo, channels },
     })
     return {
       ok: true,

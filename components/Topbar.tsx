@@ -165,7 +165,7 @@ export default function Topbar({ onMenuClick, notifications = [], org }: { onMen
             <DropdownMenuItem className="gap-2.5" onClick={() => router.push("/dashboard/profile")}><User className="h-4 w-4" /> Profile</DropdownMenuItem>
             <DropdownMenuItem className="gap-2.5" onClick={() => router.push("/dashboard/settings/organization")}><Settings className="h-4 w-4" /> Settings</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/" })} className="gap-2.5 text-debit focus:text-debit">
+            <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })} className="gap-2.5 text-debit focus:text-debit">
               <LogOut className="h-4 w-4" /> Exit / Logout
             </DropdownMenuItem>
           </DropdownMenuContent>

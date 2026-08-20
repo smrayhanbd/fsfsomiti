@@ -1,0 +1,953 @@
+     1→"use client"
+     2→
+     3→import { useRef, useState, useTransition } from "react"
+     4→import { useRouter } from "next/navigation"
+     5→import Link from "next/link"
+     6→import { Button } from "@/components/ui/button"
+     7→import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+     8→import { Input } from "@/components/ui/input"
+     9→import { Label } from "@/components/ui/label"
+    10→import { Textarea } from "@/components/ui/textarea"
+    11→import { Badge } from "@/components/ui/badge"
+    12→import {
+    13→  Dialog,
+    14→  DialogContent,
+    15→  DialogHeader,
+    16→  DialogTitle,
+    17→  DialogDescription,
+    18→} from "@/components/ui/dialog"
+    19→import {
+    20→  Select,
+    21→  SelectContent,
+    22→  SelectGroup,
+    23→  SelectItem,
+    24→  SelectLabel,
+    25→  SelectTrigger,
+    26→  SelectValue,
+    27→} from "@/components/ui/select"
+    28→import { submitDepositRequest, resubmitDepositRequest } from "@/app/actions/portal"
+    29→import { toast } from "sonner"
+    30→import {
+    31→  ArrowDownToLine,
+    32→  Upload,
+    33→  FileText,
+    34→  Wallet,
+    35→  Landmark,
+    36→  Smartphone,
+    37→  Building2,
+    38→  Hash,
+    39→  CalendarDays,
+    40→  Paperclip,
+    41→  CheckCircle2,
+    42→  Clock,
+    43→  XCircle,
+    44→  AlertCircle,
+    45→  ExternalLink,
+    46→  Undo2,
+    47→  Pencil,
+    48→  type LucideIcon,
+    49→} from "lucide-react"
+    50→import type { PaymentMethod } from "@/lib/transactions/types"
+    51→import type { MethodGroup } from "@/lib/transactions/bankAccounts"
+    52→
+    53→// ─── Types ───────────────────────────────────────────────────────────────
+    54→interface BankAccountInfo {
+    55→  id: string
+    56→  accountName: string
+    57→  bankName: string | null
+    58→  accountNumber: string | null
+    59→  branch: string | null
+    60→  paymentMethod: PaymentMethod
+    61→  isDefault: boolean
+    62→}
+    63→
+    64→interface CollectionTypeOption {
+    65→  id: string
+    66→  name: string
+    67→}
+    68→
+    69→interface RecentDepositRequest {
+    70→  id: string
+    71→  amount: number | null
+    72→  method: string | null
+    73→  notes: string | null
+    74→  status: string
+    75→  collectionTypeId: string | null
+    76→  referenceNo: string | null
+    77→  transactionDate: string | null
+    78→  rejectionReason: string | null
+    79→  returnReason: string | null
+    80→  voucherNo: string | null
+    81→  reviewedBy: string | null
+    82→  reviewedAt: string | null
+    83→  createdAt: string
+    84→  attachments: { type: string; name: string; url: string }[]
+    85→}
+    86→
+    87→interface Props {
+    88→  memberId: string
+    89→  member: {
+    90→    memberNo: string
+    91→    fullName: string
+    92→    currentBalance: number
+    93→  }
+    94→  collectionTypes: CollectionTypeOption[]
+    95→  bankAccounts: BankAccountInfo[]
+    96→  missingGroups: MethodGroup[]
+    97→  recentRequests: RecentDepositRequest[]
+    98→}
+    99→
+   100→// ─── Static config (mirrors the admin Deposit form's method groups) ──────
+   101→const METHOD_GROUPS: {
+   102→  group: MethodGroup
+   103→  label: string
+   104→  icon: LucideIcon
+   105→  methods: { value: PaymentMethod; label: string }[]
+   106→}[] = [
+   107→  { group: "CASH", label: "Cash", icon: Wallet, methods: [{ value: "CASH", label: "Cash" }] },
+   108→  {
+   109→    group: "BANK",
+   110→    label: "Bank Transfer / Cheque",
+   111→    icon: Landmark,
+   112→    methods: [
+   113→      { value: "BANK_TRANSFER", label: "Bank Transfer" },
+   114→      { value: "CHEQUE", label: "Cheque" },
+   115→    ],
+   116→  },
+   117→  {
+   118→    group: "MOBILE",
+   119→    label: "Mobile Banking",
+   120→    icon: Smartphone,
+   121→    methods: [
+   122→      { value: "BKASH", label: "bKash" },
+   123→      { value: "NAGAD", label: "Nagad" },
+   124→      { value: "ROCKET", label: "Rocket" },
+   125→    ],
+   126→  },
+   127→]
+   128→
+   129→const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+   130→  CASH: "Cash",
+   131→  BANK_TRANSFER: "Bank Transfer",
+   132→  CHEQUE: "Cheque",
+   133→  BKASH: "bKash",
+   134→  NAGAD: "Nagad",
+   135→  ROCKET: "Rocket",
+   136→}
+   137→
+   138→function groupForMethod(method: PaymentMethod): MethodGroup {
+   139→  if (method === "CASH") return "CASH"
+   140→  if (method === "BANK_TRANSFER" || method === "CHEQUE") return "BANK"
+   141→  return "MOBILE"
+   142→}
+   143→
+   144→function fmtDate(iso: string | null): string {
+   145→  if (!iso) return "—"
+   146→  return new Date(iso).toLocaleDateString(undefined, {
+   147→    day: "2-digit",
+   148→    month: "short",
+   149→    year: "numeric",
+   150→  })
+   151→}
+   152→
+   153→function fmtDateTime(iso: string | null): string {
+   154→  if (!iso) return "—"
+   155→  return new Date(iso).toLocaleString(undefined, {
+   156→    day: "2-digit",
+   157→    month: "short",
+   158→    year: "numeric",
+   159→    hour: "2-digit",
+   160→    minute: "2-digit",
+   161→  })
+   162→}
+   163→
+   164→const STATUS_STYLES: Record<string, { cls: string; icon: LucideIcon }> = {
+   165→  PENDING: { cls: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400", icon: Clock },
+   166→  PENDING_APPROVAL: { cls: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400", icon: Clock },
+   167→  APPROVED: { cls: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400", icon: CheckCircle2 },
+   168→  REJECTED: { cls: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400", icon: XCircle },
+   169→  RETURNED: { cls: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400", icon: Undo2 },
+   170→}
+   171→
+   172→function StatusBadge({ status }: { status: string }) {
+   173→  const s = STATUS_STYLES[status] ?? STATUS_STYLES.PENDING
+   174→  const Icon = s.icon
+   175→  return (
+   176→    <Badge variant="outline" className={s.cls}>
+   177→      <Icon className="h-3 w-3 mr-1" /> {status.replace("_", " ")}
+   178→    </Badge>
+   179→  )
+   180→}
+   181→
+   182→// ─── Component ───────────────────────────────────────────────────────────
+   183→export default function DepositRequestClient({
+   184→  memberId,
+   185→  member,
+   186→  collectionTypes,
+   187→  bankAccounts,
+   188→  missingGroups,
+   189→  recentRequests,
+   190→}: Props) {
+   191→  const router = useRouter()
+   192→  const fileInputRef = useRef<HTMLInputElement>(null)
+   193→  const editFileInputRef = useRef<HTMLInputElement>(null)
+   194→  const [isPending, startTransition] = useTransition()
+   195→
+   196→  // Form fields (initial submission)
+   197→  const [amount, setAmount] = useState("")
+   198→  const [collectionTypeId, setCollectionTypeId] = useState("")
+   199→  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("BKASH")
+   200→  const [transactionDate, setTransactionDate] = useState(new Date().toISOString().slice(0, 10))
+   201→  const [referenceNo, setReferenceNo] = useState("")
+   202→  const [notes, setNotes] = useState("")
+   203→  const [slipFile, setSlipFile] = useState<File | null>(null)
+   204→
+   205→  // ── Resubmit dialog state ("Returned for correction" path) ──────────────
+   206→  // When a member clicks "Edit & Resubmit" on a RETURNED request, we open a
+   207→  // dialog pre-filled with the original values + the admin's return reason.
+   208→  // The member can edit any field, optionally attach a NEW slip (otherwise
+   209→  // the original is kept), and submit. Calls `resubmitDepositRequest`.
+   210→  const [editOpen, setEditOpen] = useState(false)
+   211→  const [editingId, setEditingId] = useState<string | null>(null)
+   212→  const [editAmount, setEditAmount] = useState("")
+   213→  const [editCollectionTypeId, setEditCollectionTypeId] = useState("")
+   214→  const [editPaymentMethod, setEditPaymentMethod] = useState<PaymentMethod>("BKASH")
+   215→  const [editTransactionDate, setEditTransactionDate] = useState("")
+   216→  const [editReferenceNo, setEditReferenceNo] = useState("")
+   217→  const [editNotes, setEditNotes] = useState("")
+   218→  const [editSlipFile, setEditSlipFile] = useState<File | null>(null)
+   219→  const [editReturnReason, setEditReturnReason] = useState("")
+   220→  const [editVoucherNo, setEditVoucherNo] = useState<string | null>(null)
+   221→  const [editExistingSlipUrl, setEditExistingSlipUrl] = useState<string | null>(null)
+   222→  const [editExistingSlipName, setEditExistingSlipName] = useState<string | null>(null)
+   223→
+   224→  // Bank accounts grouped by their payment method group — shown read-only so
+   225→  // the member knows where to send money.
+   226→  const banksByGroup: Record<MethodGroup, BankAccountInfo[]> = {
+   227→    CASH: [],
+   228→    BANK: [],
+   229→    MOBILE: [],
+   230→  }
+   231→  for (const b of bankAccounts) {
+   232→    const g = groupForMethod(b.paymentMethod)
+   233→    banksByGroup[g].push(b)
+   234→  }
+   235→
+   236→  const activeMethodGroup = METHOD_GROUPS.find((g) => g.group === groupForMethod(paymentMethod))
+   237→  const groupMissing = missingGroups.includes(groupForMethod(paymentMethod))
+   238→  const editActiveMethodGroup = METHOD_GROUPS.find(
+   239→    (g) => g.group === groupForMethod(editPaymentMethod)
+   240→  )
+   241→  const editGroupMissing = missingGroups.includes(groupForMethod(editPaymentMethod))
+   242→
+   243→  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+   244→    const f = e.target.files?.[0] ?? null
+   245→    setSlipFile(f)
+   246→  }
+   247→
+   248→  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+   249→    e.preventDefault()
+   250→    const amt = parseFloat(amount)
+   251→    if (!amt || amt <= 0) {
+   252→      toast.error("Invalid amount", { description: "Please enter a valid deposit amount." })
+   253→      return
+   254→    }
+   255→    if (!slipFile) {
+   256→      toast.error("Deposit slip required", { description: "Please attach the deposit slip / transaction document as proof." })
+   257→      return
+   258→    }
+   259→    if (slipFile.size > 10 * 1024 * 1024) {
+   260→      toast.error("File too large", { description: "Maximum slip file size is 10 MB." })
+   261→      return
+   262→    }
+   263→
+   264→    const formData = new FormData()
+   265→    formData.append("amount", String(amt))
+   266→    formData.append("method", paymentMethod)
+   267→    if (collectionTypeId) formData.append("collectionTypeId", collectionTypeId)
+   268→    if (referenceNo.trim()) formData.append("referenceNo", referenceNo.trim())
+   269→    if (transactionDate) formData.append("transactionDate", transactionDate)
+   270→    if (notes.trim()) formData.append("notes", notes.trim())
+   271→    formData.append("slip", slipFile)
+   272→
+   273→    startTransition(async () => {
+   274→      const res = await submitDepositRequest(memberId, formData)
+   275→      if (res.ok) {
+   276→        toast.success("Deposit request submitted", {
+   277→          description: "Your request is pending admin approval. You'll be notified once it's reviewed.",
+   278→        })
+   279→        // Reset form
+   280→        setAmount("")
+   281→        setReferenceNo("")
+   282→        setNotes("")
+   283→        setSlipFile(null)
+   284→        setCollectionTypeId("")
+   285→        if (fileInputRef.current) fileInputRef.current.value = ""
+   286→        router.refresh()
+   287→      } else {
+   288→        toast.error("Submission failed", { description: res.error })
+   289→      }
+   290→    })
+   291→  }
+   292→
+   293→  // ── Resubmit handlers ("Returned for correction" path) ──────────────────
+   294→  const openEditDialog = (r: RecentDepositRequest) => {
+   295→    setEditingId(r.id)
+   296→    setEditAmount(r.amount ? String(r.amount) : "")
+   297→    setEditCollectionTypeId(r.collectionTypeId ?? "")
+   298→    setEditPaymentMethod((r.method as PaymentMethod) ?? "BKASH")
+   299→    setEditTransactionDate(
+   300→      r.transactionDate ? r.transactionDate.slice(0, 10) : new Date().toISOString().slice(0, 10)
+   301→    )
+   302→    setEditReferenceNo(r.referenceNo ?? "")
+   303→    setEditNotes(r.notes ?? "")
+   304→    setEditSlipFile(null)
+   305→    setEditReturnReason(r.returnReason ?? "")
+   306→    setEditVoucherNo(r.voucherNo)
+   307→    const slip = r.attachments?.[0]
+   308→    setEditExistingSlipUrl(slip?.url ?? null)
+   309→    setEditExistingSlipName(slip?.name ?? null)
+   310→    if (editFileInputRef.current) editFileInputRef.current.value = ""
+   311→    setEditOpen(true)
+   312→  }
+   313→
+   314→  const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+   315→    const f = e.target.files?.[0] ?? null
+   316→    setEditSlipFile(f)
+   317→  }
+   318→
+   319→  const handleEditSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+   320→    e.preventDefault()
+   321→    if (!editingId) return
+   322→    const amt = parseFloat(editAmount)
+   323→    if (!amt || amt <= 0) {
+   324→      toast.error("Invalid amount", { description: "Please enter a valid deposit amount." })
+   325→      return
+   326→    }
+   327→    if (editSlipFile && editSlipFile.size > 10 * 1024 * 1024) {
+   328→      toast.error("File too large", { description: "Maximum slip file size is 10 MB." })
+   329→      return
+   330→    }
+   331→
+   332→    const formData = new FormData()
+   333→    formData.append("amount", String(amt))
+   334→    formData.append("method", editPaymentMethod)
+   335→    if (editCollectionTypeId) formData.append("collectionTypeId", editCollectionTypeId)
+   336→    if (editReferenceNo.trim()) formData.append("referenceNo", editReferenceNo.trim())
+   337→    if (editTransactionDate) formData.append("transactionDate", editTransactionDate)
+   338→    if (editNotes.trim()) formData.append("notes", editNotes.trim())
+   339→    if (editSlipFile) {
+   340→      formData.append("slip", editSlipFile)
+   341→    } else {
+   342→      // Send an empty File so the action sees `slipFile` as null and keeps
+   343→      // the original. FormData.append with a Blob is required for the field
+   344→      // to exist; we send an empty 0-byte Blob named "slip" so the action's
+   345→      // `slipFile.size === 0` branch fires correctly.
+   346→      formData.append("slip", new Blob([], { type: "application/octet-stream" }), "")
+   347→    }
+   348→
+   349→    startTransition(async () => {
+   350→      const res = await resubmitDepositRequest(memberId, editingId, formData)
+   351→      if (res.ok) {
+   352→        toast.success("Deposit request resubmitted", {
+   353→          description: "Your updated request is back in the admin approval queue.",
+   354→        })
+   355→        setEditOpen(false)
+   356→        setEditingId(null)
+   357→        router.refresh()
+   358→      } else {
+   359→        toast.error("Resubmission failed", { description: res.error })
+   360→      }
+   361→    })
+   362→  }
+   363→
+   364→  return (
+   365→    <div className="space-y-6">
+   366→      {/* Header */}
+   367→      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+   368→        <div>
+   369→          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+   370→            <ArrowDownToLine className="h-7 w-7 text-emerald-500" /> Deposit Request
+   371→          </h1>
+   372→          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+   373→            Already deposited to the Somiti account? Submit the details with your deposit slip — admin will verify and credit your balance.
+   374→          </p>
+   375→        </div>
+   376→        <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-950/30 px-4 py-2">
+   377→          <Wallet className="h-5 w-5 text-emerald-600" />
+   378→          <div>
+   379→            <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 dark:text-slate-400">
+   380→              Current Balance
+   381→            </p>
+   382→            <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">
+   383→              ৳ {member.currentBalance.toLocaleString()}
+   384→            </p>
+   385→          </div>
+   386→        </div>
+   387→      </div>
+   388→
+   389→      {/* Where to deposit (read-only bank accounts) */}
+   390→      <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+   391→        <CardHeader className="bg-slate-50/80 dark:bg-slate-900/80 border-b border-slate-200/60 dark:border-slate-800/60 px-6 py-4">
+   392→          <CardTitle className="flex items-center gap-2 text-sm text-slate-800 dark:text-white">
+   393→            <Building2 className="h-4 w-4 text-indigo-500" /> Somiti Accounts — Deposit Here First
+   394→          </CardTitle>
+   395→        </CardHeader>
+   396→        <CardContent className="p-6">
+   397→          {bankAccounts.length === 0 ? (
+   398→            <div className="flex items-start gap-2 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 p-3 text-sm text-amber-700 dark:text-amber-400">
+   399→              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+   400→              <div>
+   401→                No active bank/mobile accounts configured. Please contact management for deposit instructions before submitting a request.
+   402→              </div>
+   403→            </div>
+   404→          ) : (
+   405→            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+   406→              {(["CASH", "BANK", "MOBILE"] as MethodGroup[]).map((g) => {
+   407→                const groupCfg = METHOD_GROUPS.find((m) => m.group === g)!
+   408→                const accounts = banksByGroup[g]
+   409→                if (accounts.length === 0) return null
+   410→                const Icon = groupCfg.icon
+   411→                return (
+   412→                  <div
+   413→                    key={g}
+   414→                    className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-4"
+   415→                  >
+   416→                    <div className="flex items-center gap-2 mb-3">
+   417→                      <div className="h-8 w-8 rounded-lg bg-indigo-100 dark:bg-indigo-950/40 flex items-center justify-center">
+   418→                        <Icon className="h-4 w-4 text-indigo-600" />
+   419→                      </div>
+   420→                      <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+   421→                        {groupCfg.label}
+   422→                      </p>
+   423→                    </div>
+   424→                    <ul className="space-y-2">
+   425→                      {accounts.map((a) => (
+   426→                        <li key={a.id} className="text-xs">
+   427→                          <div className="flex items-center gap-1.5">
+   428→                            <p className="font-semibold text-slate-700 dark:text-slate-200">
+   429→                              {a.accountName}
+   430→                            </p>
+   431→                            {a.isDefault && (
+   432→                              <Badge variant="outline" className="h-4 px-1 text-[9px] uppercase font-bold border-emerald-300 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-400">
+   433→                                Default
+   434→                              </Badge>
+   435→                            )}
+   436→                          </div>
+   437→                          {a.bankName && (
+   438→                            <p className="text-slate-500 dark:text-slate-400">{a.bankName}</p>
+   439→                          )}
+   440→                          {a.accountNumber && (
+   441→                            <p className="font-mono text-slate-600 dark:text-slate-300">
+   442→                              {a.accountNumber}
+   443→                            </p>
+   444→                          )}
+   445→                          {a.branch && (
+   446→                            <p className="text-slate-400">{a.branch}</p>
+   447→                          )}
+   448→                          <p className="mt-0.5 text-[10px] uppercase tracking-wider text-slate-400">
+   449→                            {PAYMENT_METHOD_LABEL[a.paymentMethod]}
+   450→                          </p>
+   451→                        </li>
+   452→                      ))}
+   453→                    </ul>
+   454→                  </div>
+   455→                )
+   456→              })}
+   457→            </div>
+   458→          )}
+   459→        </CardContent>
+   460→      </Card>
+   461→
+   462→      {/* Submission form + recent requests */}
+   463→      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+   464→        {/* Form (3 cols) */}
+   465→        <div className="lg:col-span-3">
+   466→          <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+   467→            <CardHeader className="bg-slate-50/80 dark:bg-slate-900/80 border-b border-slate-200/60 dark:border-slate-800/60 px-6 py-4">
+   468→              <CardTitle className="flex items-center gap-2 text-sm text-slate-800 dark:text-white">
+   469→                <FileText className="h-4 w-4 text-emerald-500" /> Submit New Deposit Request
+   470→              </CardTitle>
+   471→            </CardHeader>
+   472→            <CardContent className="p-6">
+   473→              <form onSubmit={handleSubmit} className="space-y-4">
+   474→                {/* Amount + Date */}
+   475→                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   476→                  <div className="space-y-2">
+   477→                    <Label htmlFor="amount">
+   478→                      Deposit Amount (৳) <span className="text-rose-500">*</span>
+   479→                    </Label>
+   480→                    <Input
+   481→                      id="amount"
+   482→                      name="amount"
+   483→                      type="number"
+   484→                      step="0.01"
+   485→                      min="0"
+   486→                      required
+   487→                      placeholder="0.00"
+   488→                      value={amount}
+   489→                      onChange={(e) => setAmount(e.target.value)}
+   490→                      className="font-mono"
+   491→                    />
+   492→                  </div>
+   493→                  <div className="space-y-2">
+   494→                    <Label htmlFor="transactionDate">
+   495→                      Deposit Date <span className="text-rose-500">*</span>
+   496→                    </Label>
+   497→                    <div className="relative">
+   498→                      <CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+   499→                      <Input
+   500→                        id="transactionDate"
+   501→                        name="transactionDate"
+   502→                        type="date"
+   503→                        required
+   504→                        value={transactionDate}
+   505→                        onChange={(e) => setTransactionDate(e.target.value)}
+   506→                        className="pl-9"
+   507→                      />
+   508→                    </div>
+   509→                  </div>
+   510→                </div>
+   511→
+   512→                {/* Collection type */}
+   513→                <div className="space-y-2">
+   514→                  <Label htmlFor="collectionTypeId">Deposit Type</Label>
+   515→                  <Select value={collectionTypeId} onValueChange={(v) => v && setCollectionTypeId(v)}>
+   516→                    <SelectTrigger id="collectionTypeId">
+   517→                      <SelectValue placeholder={collectionTypes.length ? "Select deposit type (optional)" : "No collection types configured"} />
+   518→                    </SelectTrigger>
+   519→                    <SelectContent>
+   520→                      {collectionTypes.map((c) => (
+   521→                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+   522→                      ))}
+   523→                    </SelectContent>
+   524→                  </Select>
+   525→                  <p className="text-xs text-slate-500">
+   526→                    Pick the category that best matches your deposit (e.g. Monthly Savings, Due Payment).
+   527→                  </p>
+   528→                </div>
+   529→
+   530→                {/* Payment method */}
+   531→                <div className="space-y-2">
+   532→                  <Label htmlFor="method">
+   533→                    Payment Method <span className="text-rose-500">*</span>
+   534→                  </Label>
+   535→                  <Select
+   536→                    value={paymentMethod}
+   537→                    onValueChange={(v) => v && setPaymentMethod(v as PaymentMethod)}
+   538→                    name="method"
+   539→                  >
+   540→                    <SelectTrigger id="method">
+   541→                      <span className="flex items-center gap-2">
+   542→                        {activeMethodGroup && <activeMethodGroup.icon className="h-4 w-4 text-slate-500" />}
+   543→                        <span>{PAYMENT_METHOD_LABEL[paymentMethod]}</span>
+   544→                      </span>
+   545→                    </SelectTrigger>
+   546→                    <SelectContent>
+   547→                      {METHOD_GROUPS.map((g) => (
+   548→                        <SelectGroup key={g.group}>
+   549→                          <SelectLabel>{g.label}</SelectLabel>
+   550→                          {g.methods.map((m) => (
+   551→                            <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+   552→                          ))}
+   553→                        </SelectGroup>
+   554→                      ))}
+   555→                    </SelectContent>
+   556→                  </Select>
+   557→                  {groupMissing && (
+   558→                    <div className="flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 p-2 text-xs text-amber-700 dark:text-amber-400">
+   559→                      <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+   560→                      <span>
+   561→                        The Somiti hasn&apos;t configured a receiving account for this method. Your request will still be submitted; admin will resolve the account before approval.
+   562→                      </span>
+   563→                    </div>
+   564→                  )}
+   565→                </div>
+   566→
+   567→                {/* Reference number */}
+   568→                <div className="space-y-2">
+   569→                  <Label htmlFor="referenceNo">Reference / Transaction ID</Label>
+   570→                  <div className="relative">
+   571→                    <Hash className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+   572→                    <Input
+   573→                      id="referenceNo"
+   574→                      name="referenceNo"
+   575→                      value={referenceNo}
+   576→                      onChange={(e) => setReferenceNo(e.target.value)}
+   577→                      placeholder="Bank txn id / cheque no. / bKash trxId"
+   578→                      className="pl-9"
+   579→                    />
+   580→                  </div>
+   581→                  <p className="text-xs text-slate-500">
+   582→                    The transaction ID printed on your slip or SMS confirmation — helps admin verify faster.
+   583→                  </p>
+   584→                </div>
+   585→
+   586→                {/* Slip upload */}
+   587→                <div className="space-y-2">
+   588→                  <Label htmlFor="slip">
+   589→                    Deposit Slip / Transaction Document <span className="text-rose-500">*</span>
+   590→                  </Label>
+   591→                  <div className="rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 p-4">
+   592→                    <input
+   593→                      ref={fileInputRef}
+   594→                      id="slip"
+   595→                      name="slip"
+   596→                      type="file"
+   597→                      accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,application/pdf,image/*"
+   598→                      onChange={handleFileChange}
+   599→                      className="block w-full text-sm text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 dark:file:bg-emerald-950/40 dark:file:text-emerald-400"
+   600→                    />
+   601→                    {slipFile && (
+   602→                      <div className="mt-2 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+   603→                        <Paperclip className="h-3 w-3" />
+   604→                        <span className="truncate">{slipFile.name}</span>
+   605→                        <span className="text-slate-400">({(slipFile.size / 1024).toFixed(0)} KB)</span>
+   606→                      </div>
+   607→                    )}
+   608→                    <p className="mt-2 text-[11px] text-slate-400">
+   609→                      Accepted: PDF, PNG, JPG, WEBP, GIF. Max 10 MB.
+   610→                    </p>
+   611→                  </div>
+   612→                </div>
+   613→
+   614→                {/* Notes */}
+   615→                <div className="space-y-2">
+   616→                  <Label htmlFor="notes">Notes (Optional)</Label>
+   617→                  <Textarea
+   618→                    id="notes"
+   619→                    name="notes"
+   620→                    value={notes}
+   621→                    onChange={(e) => setNotes(e.target.value)}
+   622→                    placeholder="Any additional context for the admin reviewer…"
+   623→                    className="min-h-[64px] resize-y"
+   624→                  />
+   625→                </div>
+   626→
+   627→                {/* Submit */}
+   628→                <div className="flex justify-end gap-2 pt-2">
+   629→                  <Button
+   630→                    type="button"
+   631→                    variant="outline"
+   632→                    onClick={() => router.back()}
+   633→                    disabled={isPending}
+   634→                  >
+   635→                    Cancel
+   636→                  </Button>
+   637→                  <Button
+   638→                    type="submit"
+   639→                    className="bg-emerald-600 hover:bg-emerald-700"
+   640→                    disabled={isPending}
+   641→                  >
+   642→                    <Upload className="h-4 w-4 mr-1.5" />
+   643→                    {isPending ? "Submitting…" : "Submit Deposit Request"}
+   644→                  </Button>
+   645→                </div>
+   646→              </form>
+   647→            </CardContent>
+   648→          </Card>
+   649→        </div>
+   650→
+   651→        {/* Recent requests (2 cols) */}
+   652→        <div className="lg:col-span-2">
+   653→          <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden h-full">
+   654→            <CardHeader className="bg-slate-50/80 dark:bg-slate-900/80 border-b border-slate-200/60 dark:border-slate-800/60 px-6 py-4 flex flex-row items-center justify-between">
+   655→              <CardTitle className="flex items-center gap-2 text-sm text-slate-800 dark:text-white">
+   656→                <Clock className="h-4 w-4 text-amber-500" /> Recent Deposit Requests
+   657→              </CardTitle>
+   658→              <Link
+   659→                href="/portal/requests"
+   660→                className="text-xs font-medium text-indigo-600 hover:underline"
+   661→              >
+   662→                View all →
+   663→              </Link>
+   664→            </CardHeader>
+   665→            <CardContent className="p-6">
+   666→              {recentRequests.length === 0 ? (
+   667→                <div className="text-center py-8 flex flex-col items-center">
+   668→                  <div className="h-12 w-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-3">
+   669→                    <ArrowDownToLine className="h-6 w-6 text-slate-400" />
+   670→                  </div>
+   671→                  <p className="font-medium text-slate-700 dark:text-slate-200">No deposit requests yet</p>
+   672→                  <p className="text-sm text-slate-500 mt-0.5">
+   673→                    Submit your first request using the form on the left.
+   674→                  </p>
+   675→                </div>
+   676→              ) : (
+   677→                <ul className="space-y-3">
+   678→                  {recentRequests.map((r) => (
+   679→                    <li
+   680→                      key={r.id}
+   681→                      className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3"
+   682→                    >
+   683→                      <div className="flex items-start justify-between gap-2">
+   684→                        <div className="min-w-0">
+   685→                          <p className="font-bold text-slate-900 dark:text-white">
+   686→                            ৳ {r.amount ? Number(r.amount).toLocaleString() : "—"}
+   687→                          </p>
+   688→                          <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+   689→                            <CalendarDays className="h-3 w-3" />
+   690→                            {fmtDate(r.transactionDate ?? r.createdAt)}
+   691→                            {r.method && <span>· {PAYMENT_METHOD_LABEL[r.method as PaymentMethod] ?? r.method}</span>}
+   692→                            {r.referenceNo && <span>· Ref: {r.referenceNo}</span>}
+   693→                          </p>
+   694→                          {r.notes && (
+   695→                            <p className="text-xs text-slate-500 mt-1 line-clamp-2">&ldquo;{r.notes}&rdquo;</p>
+   696→                          )}
+   697→                          {r.attachments?.[0] && (
+   698→                            <a
+   699→                              href={r.attachments[0].url}
+   700→                              target="_blank"
+   701→                              rel="noreferrer"
+   702→                              className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-indigo-600 hover:underline"
+   703→                            >
+   704→                              <Paperclip className="h-3 w-3" />
+   705→                              View slip
+   706→                              <ExternalLink className="h-2.5 w-2.5" />
+   707→                            </a>
+   708→                          )}
+   709→                          {r.status === "REJECTED" && r.rejectionReason && (
+   710→                            <div className="mt-2 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 p-2 text-[11px] text-rose-700 dark:text-rose-400">
+   711→                              <p className="font-semibold mb-0.5">Rejection reason:</p>
+   712→                              <p>{r.rejectionReason}</p>
+   713→                              {r.reviewedBy && (
+   714→                                <p className="mt-1 text-rose-500">
+   715→                                  — {r.reviewedBy}, {fmtDateTime(r.reviewedAt)}
+   716→                                </p>
+   717→                              )}
+   718→                            </div>
+   719→                          )}
+   720→                          {r.status === "RETURNED" && (
+   721→                            <div className="mt-2 rounded-lg border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/20 p-2 text-[11px] text-blue-700 dark:text-blue-400">
+   722→                              <p className="font-semibold mb-0.5 flex items-center gap-1">
+   723→                                <Undo2 className="h-3 w-3" /> Returned for correction
+   724→                              </p>
+   725→                              {r.returnReason && <p>{r.returnReason}</p>}
+   726→                              {r.reviewedBy && (
+   727→                                <p className="mt-1 text-blue-500">
+   728→                                  — {r.reviewedBy}, {fmtDateTime(r.reviewedAt)}
+   729→                                </p>
+   730→                              )}
+   731→                              <Button
+   732→                                type="button"
+   733→                                size="sm"
+   734→                                className="mt-2 h-7 bg-blue-600 hover:bg-blue-700 text-[11px]"
+   735→                                onClick={() => openEditDialog(r)}
+   736→                                disabled={isPending}
+   737→                              >
+   738→                                <Pencil className="h-3 w-3 mr-1" /> Edit &amp; Resubmit
+   739→                              </Button>
+   740→                            </div>
+   741→                          )}
+   742→                          {r.status === "APPROVED" && r.reviewedBy && (
+   743→                            <p className="mt-1 text-[10px] text-slate-400">
+   744→                              Approved by {r.reviewedBy} on {fmtDateTime(r.reviewedAt)}
+   745→                            </p>
+   746→                          )}
+   747→                        </div>
+   748→                        <StatusBadge status={r.status} />
+   749→                      </div>
+   750→                    </li>
+   751→                  ))}
+   752→                </ul>
+   753→              )}
+   754→            </CardContent>
+   755→          </Card>
+   756→        </div>
+   757→      </div>
+   758→
+   759→      {/* ── Resubmit dialog ("Returned for correction" path) ───────────────────
+   760→          Pre-fills the original request values + shows the admin's return
+   761→          reason. Member can edit any field, optionally attach a NEW slip
+   762→          (otherwise the original slip URL is kept), and resubmit. */}
+   763→      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+   764→        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-950 rounded-2xl">
+   765→          <DialogHeader>
+   766→            <DialogTitle className="flex items-center gap-2">
+   767→              <Pencil className="h-4 w-4 text-blue-600" />
+   768→              Edit &amp; Resubmit Deposit Request
+   769→            </DialogTitle>
+   770→            <DialogDescription>
+   771→              {editVoucherNo && (
+   772→                <span className="font-mono text-[11px]">Voucher {editVoucherNo}</span>
+   773→              )}
+   774→              <span className="text-slate-500">
+   775→                Update the fields the admin flagged, then resubmit for approval.
+   776→              </span>
+   777→            </DialogDescription>
+   778→          </DialogHeader>
+   779→
+   780→          {editReturnReason && (
+   781→            <div className="rounded-lg border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/20 p-3 text-xs text-blue-700 dark:text-blue-400">
+   782→              <p className="font-semibold mb-0.5 flex items-center gap-1">
+   783→                <Undo2 className="h-3 w-3" /> Admin&apos;s return reason:
+   784→              </p>
+   785→              <p>{editReturnReason}</p>
+   786→            </div>
+   787→          )}
+   788→
+   789→          <form onSubmit={handleEditSubmit} className="space-y-4">
+   790→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   791→              <div className="space-y-2">
+   792→                <Label htmlFor="edit-amount">Amount (৳) <span className="text-rose-500">*</span></Label>
+   793→                <Input
+   794→                  id="edit-amount"
+   795→                  type="number"
+   796→                  step="0.01"
+   797→                  min="0"
+   798→                  required
+   799→                  value={editAmount}
+   800→                  onChange={(e) => setEditAmount(e.target.value)}
+   801→                  className="font-mono"
+   802→                />
+   803→              </div>
+   804→              <div className="space-y-2">
+   805→                <Label htmlFor="edit-date">Deposit Date <span className="text-rose-500">*</span></Label>
+   806→                <div className="relative">
+   807→                  <CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+   808→                  <Input
+   809→                    id="edit-date"
+   810→                    type="date"
+   811→                    required
+   812→                    value={editTransactionDate}
+   813→                    onChange={(e) => setEditTransactionDate(e.target.value)}
+   814→                    className="pl-9"
+   815→                  />
+   816→                </div>
+   817→              </div>
+   818→            </div>
+   819→
+   820→            <div className="space-y-2">
+   821→              <Label htmlFor="edit-collection">Deposit Type</Label>
+   822→              <Select value={editCollectionTypeId} onValueChange={(v) => v && setEditCollectionTypeId(v)}>
+   823→                <SelectTrigger id="edit-collection">
+   824→                  <SelectValue placeholder={collectionTypes.length ? "Select deposit type (optional)" : "No collection types configured"} />
+   825→                </SelectTrigger>
+   826→                <SelectContent>
+   827→                  {collectionTypes.map((c) => (
+   828→                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+   829→                  ))}
+   830→                </SelectContent>
+   831→              </Select>
+   832→            </div>
+   833→
+   834→            <div className="space-y-2">
+   835→              <Label htmlFor="edit-method">Payment Method <span className="text-rose-500">*</span></Label>
+   836→              <Select
+   837→                value={editPaymentMethod}
+   838→                onValueChange={(v) => v && setEditPaymentMethod(v as PaymentMethod)}
+   839→              >
+   840→                <SelectTrigger id="edit-method">
+   841→                  <span className="flex items-center gap-2">
+   842→                    {editActiveMethodGroup && <editActiveMethodGroup.icon className="h-4 w-4 text-slate-500" />}
+   843→                    <span>{PAYMENT_METHOD_LABEL[editPaymentMethod]}</span>
+   844→                  </span>
+   845→                </SelectTrigger>
+   846→                <SelectContent>
+   847→                  {METHOD_GROUPS.map((g) => (
+   848→                    <SelectGroup key={g.group}>
+   849→                      <SelectLabel>{g.label}</SelectLabel>
+   850→                      {g.methods.map((m) => (
+   851→                        <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+   852→                      ))}
+   853→                    </SelectGroup>
+   854→                  ))}
+   855→                </SelectContent>
+   856→              </Select>
+   857→              {editGroupMissing && (
+   858→                <p className="text-[11px] text-amber-600 dark:text-amber-400">
+   859→                  No default receiving account configured for this method. Admin will resolve before approval.
+   860→                </p>
+   861→              )}
+   862→            </div>
+   863→
+   864→            <div className="space-y-2">
+   865→              <Label htmlFor="edit-ref">Reference / Transaction ID</Label>
+   866→              <div className="relative">
+   867→                <Hash className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+   868→                <Input
+   869→                  id="edit-ref"
+   870→                  value={editReferenceNo}
+   871→                  onChange={(e) => setEditReferenceNo(e.target.value)}
+   872→                  placeholder="Bank txn id / cheque no. / bKash trxId"
+   873→                  className="pl-9"
+   874→                />
+   875→              </div>
+   876→            </div>
+   877→
+   878→            <div className="space-y-2">
+   879→              <Label htmlFor="edit-slip">Deposit Slip (optional — leave blank to keep original)</Label>
+   880→              <div className="rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 p-3">
+   881→                <input
+   882→                  ref={editFileInputRef}
+   883→                  id="edit-slip"
+   884→                  type="file"
+   885→                  accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,application/pdf,image/*"
+   886→                  onChange={handleEditFileChange}
+   887→                  className="block w-full text-sm text-slate-500 file:mr-3 file:py-1.5 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-950/40 dark:file:text-blue-400"
+   888→                />
+   889→                {editSlipFile ? (
+   890→                  <div className="mt-2 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+   891→                    <Paperclip className="h-3 w-3" />
+   892→                    <span className="truncate">{editSlipFile.name}</span>
+   893→                    <span className="text-slate-400">({(editSlipFile.size / 1024).toFixed(0)} KB)</span>
+   894→                  </div>
+   895→                ) : editExistingSlipUrl ? (
+   896→                  <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+   897→                    <Paperclip className="h-3 w-3" />
+   898→                    <span>Current:</span>
+   899→                    <a
+   900→                      href={editExistingSlipUrl}
+   901→                      target="_blank"
+   902→                      rel="noreferrer"
+   903→                      className="text-indigo-600 hover:underline truncate max-w-[200px]"
+   904→                    >
+   905→                      {editExistingSlipName ?? "View slip"}
+   906→                    </a>
+   907→                    <ExternalLink className="h-2.5 w-2.5" />
+   908→                  </div>
+   909→                ) : (
+   910→                  <p className="mt-2 text-[11px] text-rose-500">No slip on record — please attach one.</p>
+   911→                )}
+   912→                <p className="mt-1 text-[11px] text-slate-400">
+   913→                  Upload a new file to replace the original. PDF, PNG, JPG, WEBP, GIF. Max 10 MB.
+   914→                </p>
+   915→              </div>
+   916→            </div>
+   917→
+   918→            <div className="space-y-2">
+   919→              <Label htmlFor="edit-notes">Notes (Optional)</Label>
+   920→              <Textarea
+   921→                id="edit-notes"
+   922→                value={editNotes}
+   923→                onChange={(e) => setEditNotes(e.target.value)}
+   924→                placeholder="Any additional context for the admin reviewer…"
+   925→                className="min-h-[64px] resize-y"
+   926→              />
+   927→            </div>
+   928→
+   929→            <div className="flex justify-end gap-2 pt-2 sticky bottom-0 bg-white dark:bg-slate-950 -mx-1 px-1 pb-1">
+   930→              <Button
+   931→                type="button"
+   932→                variant="outline"
+   933→                onClick={() => setEditOpen(false)}
+   934→                disabled={isPending}
+   935→              >
+   936→                Cancel
+   937→              </Button>
+   938→              <Button
+   939→                type="submit"
+   940→                className="bg-blue-600 hover:bg-blue-700"
+   941→                disabled={isPending}
+   942→              >
+   943→                <Undo2 className="h-4 w-4 mr-1.5" />
+   944→                {isPending ? "Resubmitting…" : "Resubmit for Approval"}
+   945→              </Button>
+   946→            </div>
+   947→          </form>
+   948→        </DialogContent>
+   949→      </Dialog>
+   950→    </div>
+   951→  )
+   952→}
+   953→

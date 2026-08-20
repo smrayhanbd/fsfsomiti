@@ -216,7 +216,7 @@ export default function PortalTopbar({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={() => signOut({ callbackUrl: "/" })}
+              onClick={() => signOut({ callbackUrl: "/login" })}
               className="cursor-pointer text-debit focus:text-debit"
             >
               <LogOut className="mr-2 h-4 w-4" /> Logout

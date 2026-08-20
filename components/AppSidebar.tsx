@@ -396,7 +396,7 @@ function SidebarContent({ isExpanded, setExpanded, onNavigate, org }: SidebarCon
           <Button
             variant="ghost"
             className="w-full justify-start gap-3 text-debit hover:bg-debit-soft hover:text-debit"
-            onClick={() => signOut({ callbackUrl: "/" })}
+            onClick={() => signOut({ callbackUrl: "/login" })}
           >
             <LogOut className="h-[18px] w-[18px] shrink-0" />
             <span className="font-medium">Exit / Logout</span>
@@ -404,7 +404,7 @@ function SidebarContent({ isExpanded, setExpanded, onNavigate, org }: SidebarCon
         ) : (
           <Tooltip>
             <TooltipTrigger
-              onClick={() => signOut({ callbackUrl: "/" })}
+              onClick={() => signOut({ callbackUrl: "/login" })}
               className="flex w-full items-center justify-center rounded-lg p-2.5 text-debit transition-colors hover:bg-debit-soft hover:text-debit"
             >
               <LogOut className="h-[18px] w-[18px] shrink-0" />

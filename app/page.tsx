@@ -11,7 +11,7 @@ export default async function LandingPage() {
     prisma.siteContent.findUnique({ where: { id: "singleton" } }),
     getOrganization(),
   ])
-
+  
   // Fallback defaults if admin hasn't set content yet. Only the fields the
   // landing page renders are required, so we project down to LandingContent.
   const fallback: LandingContent = {

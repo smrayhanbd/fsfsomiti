@@ -1,6 +1,39 @@
 import { PrismaClient } from '@prisma/client'
 
 // ──────────────────────────────────────────────────────────────────────────
+// .env OVERRIDE (fix for CLIENT_FETCH_ERROR on NextAuth)
+// ──────────────────────────────────────────────────────────────────────────
+// Next.js auto-loads .env, but it does NOT override variables that are
+// already present in the process environment (shell exports, container
+// runtime, /start.sh, etc). On shared dev hosts the shell often carries a
+// stale `DATABASE_URL=file:.../custom.db` (left over from the sandbox
+// scaffold), which makes Prisma read the SQLite URL instead of the real
+// Postgres URL in .env. Prisma then fails with:
+//
+//   "the URL must start with the protocol `postgresql://` or `postgres://`"
+//
+// which throws a 500 from every server component that touches the DB.
+// Next.js then serves the HTML error page, the SessionProvider inside that
+// error page fires `useSession()`, and the resulting fetch ends up parsing
+// HTML — surfacing in the browser as:
+//
+//   [next-auth][error][CLIENT_FETCH_ERROR]
+//   "Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+//
+// The fix: in non-production only, reload .env with `override: true` so
+// the project's own .env is authoritative. In production (Vercel, Docker,
+// etc.) the platform's env vars still win — which is what you want there.
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('dotenv').config({ override: true })
+  } catch {
+    // dotenv is a devDependency; if it's missing in some exotic env we
+    // fall through and let Next.js's own .env loader handle things.
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // CONNECTION STRATEGY (Supabase Pooler)
 // ──────────────────────────────────────────────────────────────────────────
 //  DATABASE_URL  → Supabase TRANSACTION-mode pooler (port 6543, pgbouncer=true)
