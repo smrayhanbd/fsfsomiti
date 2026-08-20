@@ -36,7 +36,7 @@ async function generateAndSendCredentials(memberId: string) {
     // few outputs can recover the internal state and predict future
     // passwords. base64url yields a URL-safe ~8-char password from 6 bytes.
     const tempPassword = randomBytes(6).toString("base64url")
-    const hashedPassword = await bcrypt.hash(tempPassword, 12)
+    const hashedPassword = await bcrypt.hash(tempPassword, 10)
 
     // 2. Save to MemberAccount table
     await prisma.memberAccount.create({

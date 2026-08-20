@@ -231,7 +231,6 @@ export default function LandingPageClient({ content, org }: { content: LandingCo
           {/* Desktop nav — only on lg+ where there's room for all 6 links + buttons */}
           <nav className="hidden items-center gap-6 lg:flex">
             <Link href="#about" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">About Us</Link>
-            <Link href="#vision" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">Vision</Link>
             <Link href="#pillars" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">What We Do</Link>
             <Link href="#portal" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">Transparency</Link>
             <Link href="#management" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">Management</Link>
@@ -259,7 +258,6 @@ export default function LandingPageClient({ content, org }: { content: LandingCo
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuItem render={<Link href="#about" className="flex w-full cursor-pointer items-center p-2" />}>About</DropdownMenuItem>
-                  <DropdownMenuItem render={<Link href="#vision" className="flex w-full cursor-pointer items-center p-2" />}>Vision</DropdownMenuItem>
                   <DropdownMenuItem render={<Link href="#pillars" className="flex w-full cursor-pointer items-center p-2" />}>What We Do</DropdownMenuItem>
                   <DropdownMenuItem render={<Link href="#portal" className="flex w-full cursor-pointer items-center p-2" />}>Member Portal</DropdownMenuItem>
                   <DropdownMenuItem render={<Link href="#management" className="flex w-full cursor-pointer items-center p-2" />}>Management</DropdownMenuItem>

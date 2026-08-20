@@ -14,6 +14,11 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: '20mb',
     },
+    // Tree-shake large barrel-file packages that are NOT already in Next's
+    // default optimize list (lucide-react and date-fns are). recharts and
+    // framer-motion otherwise drag big module graphs into every dashboard
+    // client bundle, slowing load + navigation on admin pages.
+    optimizePackageImports: ['recharts', 'framer-motion'],
   },
 
   // next.config.js

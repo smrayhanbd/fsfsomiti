@@ -2,7 +2,7 @@
 
 import { uploadImage } from "@/lib/cloudinary"
 import prisma from "@/lib/prisma"
-import { DEFAULT_ORG } from "@/lib/organization"
+import { DEFAULT_ORG, invalidateOrganizationCache } from "@/lib/organization"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import {
@@ -77,6 +77,7 @@ export async function updateOrganization(formData: FormData) {
     update: data,
     create: { id: "singleton", ...data },
   })
+  invalidateOrganizationCache()
 
   // Org info appears on receipts, vouchers, ledgers, landing, and emails.
   revalidatePath("/dashboard/settings/organization")

@@ -1,5 +1,6 @@
 import prisma, { directPrisma } from "@/lib/prisma"
 import { ok, bad, requirePermissionsAdmin, writeRbacAudit, AUDIT } from "@/lib/permissions/api"
+import { clearPermissionResolverCache } from "@/lib/permissions/resolver"
 import { z } from "zod"
 import {
   enumerateRegistry,
@@ -80,6 +81,7 @@ export async function PUT(
     // Edge case: user cleared every permission. Just delete all grants.
     try {
       await directPrisma.rolePermission.deleteMany({ where: { roleId } })
+      clearPermissionResolverCache()
       await writeRbacAudit({
         actorId: auth.id,
         targetRoleId: roleId,
@@ -191,6 +193,7 @@ export async function PUT(
       timeout: 15_000,  // max time the transaction may take
       maxWait: 10_000,  // max time to wait for a connection slot
     })
+    clearPermissionResolverCache()
 
     await writeRbacAudit({
       actorId: auth.id,

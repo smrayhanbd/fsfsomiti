@@ -5,6 +5,23 @@ import bcrypt from "bcryptjs";
 import { verifyMfaToken } from "@/lib/mfa";
 
 // ───────────────────────────────────────────────────────────────────────────
+// BCRYPT COST
+// ───────────────────────────────────────────────────────────────────────────
+// bcryptjs is a PURE-JS implementation — at the previous cost 12 a single
+// compare took 1–2.5 seconds, dominating login latency. Cost 10 is the OWASP
+// baseline and ~4x faster. Existing cost-12 hashes still verify fine (bcrypt
+// reads the cost from the salt prefix), and every successful login rehashes
+// legacy hashes at the current cost (see the fire-and-forget updates below).
+const BCRYPT_COST = 10;
+
+/** True when a stored hash uses a HIGHER cost than the current standard. */
+function needsRehash(hash: string): boolean {
+  // bcrypt modular-crypt format: $2a$12$… / $2b$… / $2y$…
+  const m = /^\$2[aby]\$(\d+)\$/.exec(hash);
+  return !m || Number(m[1]) > BCRYPT_COST;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // MFA / 2FA (Roadmap item 13) — two-step login flow
 // ───────────────────────────────────────────────────────────────────────────
 // Step 1 (credentials provider "credentials"): user submits email + password.
@@ -86,13 +103,21 @@ export const authOptions: NextAuthOptions = {
                 role: "MFA_PENDING",
               };
             }
-            // Fire-and-forget lastLogin update — don't block the response.
-            prisma.user
-              .update({
-                where: { id: adminUser.id },
-                data: { lastLogin: new Date() },
-              })
-              .catch(() => {});
+            // Fire-and-forget lastLogin update (+ transparent rehash of legacy
+            // cost-12 hashes at the current cost) — never blocks the response.
+            void (async () => {
+              try {
+                const data: { lastLogin: Date; password?: string } = {
+                  lastLogin: new Date(),
+                };
+                if (needsRehash(adminUser.password)) {
+                  data.password = await bcrypt.hash(credentials.password, BCRYPT_COST);
+                }
+                await prisma.user.update({ where: { id: adminUser.id }, data });
+              } catch {
+                // Best-effort only — a failure here must never fail the login.
+              }
+            })();
             return { id: adminUser.id, email: adminUser.email, role: adminUser.role };
           }
         }
@@ -103,6 +128,20 @@ export const authOptions: NextAuthOptions = {
           if (memberAccount.member.status !== "ACTIVE") return null;
           const passwordMatch = await bcrypt.compare(credentials.password, memberAccount.passwordHash);
           if (passwordMatch) {
+            // Fire-and-forget transparent rehash of legacy cost-12 hashes.
+            if (needsRehash(memberAccount.passwordHash)) {
+              void (async () => {
+                try {
+                  const passwordHash = await bcrypt.hash(credentials.password, BCRYPT_COST);
+                  await prisma.memberAccount.update({
+                    where: { id: memberAccount.id },
+                    data: { passwordHash },
+                  });
+                } catch {
+                  // Best-effort only — a failure here must never fail the login.
+                }
+              })();
+            }
             return {
               id: memberAccount.memberId,
               email: memberAccount.member.email || memberAccount.username,

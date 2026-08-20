@@ -11,6 +11,7 @@ import {
   ALL_PERMISSION_KEYS,
   type PermissionKey,
 } from "@/lib/permissions"
+import { clearPermissionResolverCache } from "@/lib/permissions/resolver"
 
 export type ActionResult = { ok: true; userId?: string } | { ok: false; error: string }
 
@@ -46,7 +47,7 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
     const clash = await prisma.user.findUnique({ where: { email } })
     if (clash) return { ok: false, error: "A user with this email already exists." }
 
-    const hashed = await bcrypt.hash(password, 12)
+    const hashed = await bcrypt.hash(password, 10)
     const created = await prisma.user.create({
       data: {
         email,
@@ -164,7 +165,7 @@ export async function resetUserPassword(id: string, newPassword: string): Promis
     const target = await prisma.user.findUnique({ where: { id } })
     if (!target) return { ok: false, error: "User not found." }
 
-    const hashed = await bcrypt.hash(newPassword, 12)
+    const hashed = await bcrypt.hash(newPassword, 10)
     await prisma.user.update({ where: { id }, data: { password: hashed } })
     return { ok: true }
   } catch (e) {
@@ -314,6 +315,7 @@ export async function setUserRole(userId: string, roleId: string): Promise<Actio
     })
 
     revalidatePath(USERS_PATH)
+    clearPermissionResolverCache()
     return { ok: true }
   } catch (e) {
     return { ok: false, error: (e as Error).message }

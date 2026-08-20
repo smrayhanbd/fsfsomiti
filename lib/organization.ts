@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma"
+import { createTtlCache } from "@/lib/ttlCache"
 
 /**
  * Serializable shape of the org info consumed by receipts, vouchers, ledgers,
@@ -47,6 +48,19 @@ export const DEFAULT_ORG: OrgInfo = {
   youtube: null,
 }
 
+// The org singleton changes only when an admin edits organization settings,
+// but it is read on nearly every page render (dashboard layout, login page,
+// receipts, generateMetadata). A short in-process TTL cache removes that DB
+// round trip from every navigation; the settings-save action calls
+// invalidateOrganizationCache() for instant freshness on the handling
+// instance, and the TTL converges any other warm instance.
+const orgCache = createTtlCache<OrgInfo>(60_000)
+
+/** Clear the cached org singleton — call after upserting the Organization row. */
+export function invalidateOrganizationCache(): void {
+  orgCache.clear()
+}
+
 /**
  * Read the organization singleton. Returns DEFAULT_ORG when the row is missing
  * OR the DB is unreachable (transient pool error, network blip, build-time
@@ -56,33 +70,40 @@ export const DEFAULT_ORG: OrgInfo = {
  * Safe to call from server components and server actions.
  */
 export async function getOrganization(): Promise<OrgInfo> {
+  const cached = orgCache.get("singleton")
+  if (cached) return cached
+
   let org
   try {
     org = await prisma.organization.findUnique({ where: { id: "singleton" } })
   } catch {
+    // Transient DB error — do NOT cache the fallback; the next call retries.
     return DEFAULT_ORG
   }
-  if (!org) return DEFAULT_ORG
-  return {
-    name: org.name,
-    logo: org.logo,
-    tagline: org.tagline,
-    description: org.description,
-    email: org.email,
-    phone: org.phone,
-    website: org.website,
-    addressLine: org.addressLine,
-    city: org.city,
-    district: org.district,
-    postalCode: org.postalCode,
-    regNo: org.regNo,
-    licenseNo: org.licenseNo,
-    tradeLicenseNo: org.tradeLicenseNo,
-    establishedYear: org.establishedYear,
-    facebook: org.facebook,
-    whatsapp: org.whatsapp,
-    youtube: org.youtube,
-  }
+  const info: OrgInfo = org
+    ? {
+        name: org.name,
+        logo: org.logo,
+        tagline: org.tagline,
+        description: org.description,
+        email: org.email,
+        phone: org.phone,
+        website: org.website,
+        addressLine: org.addressLine,
+        city: org.city,
+        district: org.district,
+        postalCode: org.postalCode,
+        regNo: org.regNo,
+        licenseNo: org.licenseNo,
+        tradeLicenseNo: org.tradeLicenseNo,
+        establishedYear: org.establishedYear,
+        facebook: org.facebook,
+        whatsapp: org.whatsapp,
+        youtube: org.youtube,
+      }
+    : DEFAULT_ORG
+  orgCache.set("singleton", info)
+  return info
 }
 
 /** Convenience: a single-line address string ("Dhaka, Bangladesh" etc.), or null. */

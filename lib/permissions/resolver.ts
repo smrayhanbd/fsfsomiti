@@ -29,6 +29,7 @@
 
 import { cache } from "react"
 import prisma from "@/lib/prisma"
+import { createTtlCache } from "@/lib/ttlCache"
 import {
   enumerateRegistry,
   groupKey,
@@ -57,47 +58,55 @@ export type AccessibleNavMap = Record<string, string[]>
 
 // ── The core resolver, cached per-request via React `cache()` ─────────────
 // Within a single server render, many components call hasPermission(); cache()
-// ensures the DB query runs at most once per userId per request.
-export const getUserPermissions = cache(async (userId: string): Promise<Set<string>> => {
-  // ── 1. Load roles, super-admin flag, and legacy role string ──────────
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      role: true, // legacy flat string: SUPER_ADMIN | ADMIN | MEMBER
-      roles: {
-        select: {
-          role: {
-            select: { id: true, name: true, isSuperAdmin: true },
+// ensures the DB query runs at most once per userId per request. A short-TTL
+// in-process cache layered on top ALSO skips the DB entirely across requests
+// (dashboard navigation, server actions) — see lib/ttlCache.ts for the
+// invalidation strategy.
+const PERM_CACHE_TTL_MS = 30_000
+const permTtlCache = createTtlCache<ReadonlySet<string>>(PERM_CACHE_TTL_MS)
+
+/**
+ * Clear every cached permission set. Call from any mutation that can change
+ * a user's effective permissions (role assignments, role permission edits,
+ * user overrides, role isSuperAdmin flag). Clearing everything (not just one
+ * user) is intentional: a role-permission edit affects every holder of that
+ * role.
+ */
+export function clearPermissionResolverCache(): void {
+  permTtlCache.clear()
+}
+
+export const getUserPermissions = cache(async (userId: string): Promise<ReadonlySet<string>> => {
+  const cached = permTtlCache.get(userId)
+  if (cached) return cached
+
+  // Single round trip: user row (with RBAC roles) + the union of permissions
+  // from every role the user holds (via the nested role→users relation,
+  // instead of a second sequential query keyed off roleIds) + per-user
+  // overrides — all in parallel.
+  const [user, rolePerms, overrides] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        role: true, // legacy flat string: SUPER_ADMIN | ADMIN | MEMBER
+        roles: {
+          select: {
+            role: {
+              select: { id: true, isSuperAdmin: true },
+            },
           },
         },
       },
-    },
-  })
-
-  if (!user) return new Set<string>()
-
-  // Super admin via the new RBAC role OR the legacy role string.
-  const isSuper =
-    user.roles.some((ur) => ur.role.isSuperAdmin) || user.role === "SUPER_ADMIN"
-  if (isSuper) {
-    return new Set(ALL_KEYS)
-  }
-
-  const roleIds = user.roles.map((ur) => ur.role.id)
-
-  // ── 2. Union of all permissions from all roles ───────────────────────
-  const [rolePerms, overrides] = await Promise.all([
-    roleIds.length === 0
-      ? Promise.resolve([])
-      : prisma.rolePermission.findMany({
-          where: { roleId: { in: roleIds } },
-          select: {
-            permission: {
-              select: { menuGroup: true, page: true, tab: true, action: true },
-            },
-          },
-        }),
+    }),
+    prisma.rolePermission.findMany({
+      where: { role: { users: { some: { userId } } } },
+      select: {
+        permission: {
+          select: { menuGroup: true, page: true, tab: true, action: true },
+        },
+      },
+    }),
     prisma.userPermissionOverride.findMany({
       where: { userId },
       select: {
@@ -108,6 +117,17 @@ export const getUserPermissions = cache(async (userId: string): Promise<Set<stri
       },
     }),
   ])
+
+  if (!user) return new Set<string>()
+
+  // Super admin via the new RBAC role OR the legacy role string.
+  const isSuper =
+    user.roles.some((ur) => ur.role.isSuperAdmin) || user.role === "SUPER_ADMIN"
+  if (isSuper) {
+    const all = Object.freeze(new Set(ALL_KEYS))
+    permTtlCache.set(userId, all)
+    return all
+  }
 
   // Helper: permission row → "::"-separated key (empty segments for "").
   const toKey = (p: { menuGroup: string; page: string; tab: string; action: string }) =>
@@ -121,7 +141,7 @@ export const getUserPermissions = cache(async (userId: string): Promise<Set<stri
 
   const set = new Set<string>(rolePerms.map((rp) => toKey(rp.permission)))
 
-  // ── 3. Apply overrides: ALLOW adds, DENY removes (DENY wins) ─────────
+  // ── Apply overrides: ALLOW adds, DENY removes (DENY wins) ────────────
   for (const ov of overrides) {
     const key = toKey(ov.permission)
     if (ov.effect === "ALLOW") {
@@ -138,7 +158,11 @@ export const getUserPermissions = cache(async (userId: string): Promise<Set<stri
     }
   }
 
-  return set
+  // Freeze before caching: cached instances are shared across requests and
+  // must never be mutated by a caller.
+  const frozen = Object.freeze(set) as ReadonlySet<string>
+  permTtlCache.set(userId, frozen)
+  return frozen
 })
 
 // ── Single-permission check with upward inheritance ──────────────────────
@@ -184,7 +208,7 @@ export async function hasPermission(userId: string, key: string): Promise<boolea
  *   descendant (tab/action) under G::P (bottom-up).
  *   group key  G          → granted only if set has it exactly.
  */
-export function permissionGranted(granted: Set<string>, key: string): boolean {
+export function permissionGranted(granted: ReadonlySet<string>, key: string): boolean {
   if (granted.size === 0) return false
   if (granted.has(key)) return true
 

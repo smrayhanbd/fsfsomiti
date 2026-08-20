@@ -60,42 +60,44 @@ export async function loadAccountsWithMovements(opts?: {
     dateFilter.lte = end
   }
 
-  const accounts = await prisma.account.findMany({
-    where: { status: "ACTIVE" },
-    select: {
-      id: true,
-      accountCode: true,
-      accountName: true,
-      accountType: true,
-      nature: true,
-      openingBalance: true,
-      currentBalance: true,
-      parentAccountId: true,
-      allowPosting: true,
-      journalLines: {
-        where: {
-          journalEntry: {
-            status: "POSTED",
-            ...(Object.keys(dateFilter).length
-              ? { entryDate: dateFilter }
-              : {}),
-          },
-        },
-        select: { debit: true, credit: true },
+  // PERFORMANCE: aggregate the journal lines per account in the database
+  // (groupBy + _sum) instead of loading every JournalLine row into JS just to
+  // reduce it. On a ledger with thousands of posted lines this turns a
+  // full-table transfer into one small row per account with activity.
+  const [accounts, lineSums] = await Promise.all([
+    prisma.account.findMany({
+      where: { status: "ACTIVE" },
+      select: {
+        id: true,
+        accountCode: true,
+        accountName: true,
+        accountType: true,
+        nature: true,
+        openingBalance: true,
+        currentBalance: true,
+        parentAccountId: true,
+        allowPosting: true,
       },
-    },
-    orderBy: [{ accountType: "asc" }, { accountCode: "asc" }],
-  })
+      orderBy: [{ accountType: "asc" }, { accountCode: "asc" }],
+    }),
+    prisma.journalLine.groupBy({
+      by: ["accountId"],
+      _sum: { debit: true, credit: true },
+      where: {
+        journalEntry: {
+          status: "POSTED",
+          ...(Object.keys(dateFilter).length
+            ? { entryDate: dateFilter }
+            : {}),
+        },
+      },
+    }),
+  ])
+
+  const sums = new Map(lineSums.map((r) => [r.accountId, r._sum]))
 
   return accounts.map((a) => {
-    const sum = a.journalLines.reduce(
-      (acc: { debit: number; credit: number }, l: { debit: Prisma.Decimal; credit: Prisma.Decimal }) => {
-        acc.debit += Number(l.debit ?? 0)
-        acc.credit += Number(l.credit ?? 0)
-        return acc
-      },
-      { debit: 0, credit: 0 }
-    )
+    const sum = sums.get(a.id)
     return {
       id: a.id,
       accountCode: a.accountCode,
@@ -104,74 +106,76 @@ export async function loadAccountsWithMovements(opts?: {
       nature: a.nature,
       parentAccountId: a.parentAccountId,
       allowPosting: a.allowPosting,
-      balance: naturalBalance(a, sum),
+      balance: naturalBalance(a, {
+        debit: Number(sum?.debit ?? 0),
+        credit: Number(sum?.credit ?? 0),
+      }),
     }
   })
 }
 
 /** Fetch opening-balance-only + period movement split for P&L comparison. */
 async function loadPeriodMovements(opts: { fromDate: Date; toDate: Date }) {
-  const beforeFrom = { lt: opts.fromDate }
-  const within: Prisma.DateTimeFilter = { gte: opts.fromDate, lte: opts.toDate }
-
-  const accounts = await prisma.account.findMany({
-    where: { status: "ACTIVE" },
-    select: {
-      id: true,
-      accountCode: true,
-      accountName: true,
-      accountType: true,
-      nature: true,
-      openingBalance: true,
-      journalLines: {
-        where: { journalEntry: { status: "POSTED" } },
-        select: {
-          debit: true,
-          credit: true,
-          journalEntry: { select: { entryDate: true } },
+  // PERFORMANCE: same groupBy aggregation as loadAccountsWithMovements, split
+  // into "before the period" (opening) and "within the period" sums. The old
+  // version loaded every posted JournalLine (with its entry date) into JS to
+  // bucket it — a full ledger transfer per P&L render.
+  const [accounts, beforeSums, withinSums] = await Promise.all([
+    prisma.account.findMany({
+      where: { status: "ACTIVE" },
+      select: {
+        id: true,
+        accountCode: true,
+        accountName: true,
+        accountType: true,
+        nature: true,
+        openingBalance: true,
+      },
+    }),
+    prisma.journalLine.groupBy({
+      by: ["accountId"],
+      _sum: { debit: true, credit: true },
+      where: {
+        journalEntry: { status: "POSTED", entryDate: { lt: opts.fromDate } },
+      },
+    }),
+    prisma.journalLine.groupBy({
+      by: ["accountId"],
+      _sum: { debit: true, credit: true },
+      where: {
+        journalEntry: {
+          status: "POSTED",
+          entryDate: { gte: opts.fromDate, lte: opts.toDate },
         },
       },
-    },
-  })
+    }),
+  ])
+
+  const before = new Map(beforeSums.map((r) => [r.accountId, r._sum]))
+  const within = new Map(withinSums.map((r) => [r.accountId, r._sum]))
 
   return accounts.map((a) => {
-    let openingDebit = 0
-    let openingCredit = 0
-    let periodDebit = 0
-    let periodCredit = 0
-    const fromMs = opts.fromDate.getTime()
-    const toMs = opts.toDate.getTime()
-
-    for (const l of a.journalLines) {
-      const ts = l.journalEntry.entryDate.getTime()
-      const d = Number(l.debit ?? 0)
-      const c = Number(l.credit ?? 0)
-      if (ts < fromMs) {
-        openingDebit += d
-        openingCredit += c
-      } else if (ts >= fromMs && ts <= toMs) {
-        periodDebit += d
-        periodCredit += c
-      }
-    }
-
-    const opening = naturalBalance(a, {
-      debit: openingDebit,
-      credit: openingCredit,
-    })
-    const period = naturalBalance(a, {
-      debit: periodDebit,
-      credit: periodCredit,
-    })
+    const b = before.get(a.id)
+    const w = within.get(a.id)
     return {
       id: a.id,
       accountCode: a.accountCode,
       accountName: a.accountName,
       accountType: a.accountType as AccountType,
       nature: a.nature,
-      opening,
-      period,
-      closing: opening + period,
+      opening: naturalBalance(a, {
+        debit: Number(b?.debit ?? 0),
+        credit: Number(b?.credit ?? 0),
+      }),
+      period: naturalBalance(a, {
+        debit: Number(w?.debit ?? 0),
+        credit: Number(w?.credit ?? 0),
+      }),
+      closing:
+        naturalBalance(a, {
+          debit: Number(b?.debit ?? 0) + Number(w?.debit ?? 0),
+          credit: Number(b?.credit ?? 0) + Number(w?.credit ?? 0),
+        }),
     }
   })
 }

@@ -852,7 +852,7 @@ export async function resetMemberCredentials(
     // few outputs can recover the internal state and predict future
     // passwords. base64url yields a URL-safe ~8-char password from 6 bytes.
     const tempPassword = randomBytes(6).toString("base64url")
-    const passwordHash = await bcrypt.hash(tempPassword, 12)
+    const passwordHash = await bcrypt.hash(tempPassword, 10)
 
     // Upsert the portal account. Username is the memberNo (unique).
     await prisma.memberAccount.upsert({

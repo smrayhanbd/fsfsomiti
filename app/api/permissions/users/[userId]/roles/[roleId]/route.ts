@@ -9,6 +9,7 @@ import {
   writeRbacAudit,
   AUDIT,
 } from "@/lib/permissions/api"
+import { clearPermissionResolverCache } from "@/lib/permissions/resolver"
 
 export const dynamic = "force-dynamic"
 
@@ -75,6 +76,7 @@ export async function DELETE(
 
   if (!deleted) return bad("This role is not assigned to that user.", 404)
 
+  clearPermissionResolverCache()
   await writeRbacAudit({
     actorId: auth.id,
     targetUserId: userId,

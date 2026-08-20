@@ -13,16 +13,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // so the sidebar + page guards can read it without further DB calls.
   // If the user is not signed in, redirect to the landing page — the middleware
   // also handles this, but the layout is the defense-in-depth backstop.
-  const user = await getCurrentUser()
-  if (!user) {
-    redirect("/")
-  }
-  const permissions = await getPermissionsForClient(user.id)
-
-  // Fetch unread notifications for the Topbar. Wrapped in try/catch so a
-  // transient DB/pooler outage only blanks the notification badge instead of
-  // taking down the whole dashboard route.
-  let notifications: Array<{
+  //
+  // PERFORMANCE: notifications + org don't depend on the user, so they start
+  // immediately and overlap with session/user resolution; everything then
+  // resolves in ONE round-trip window instead of three sequential awaits.
+  const notificationsPromise: Promise<Array<{
     id: string
     type: string
     title: string
@@ -30,19 +25,30 @@ export default async function DashboardLayout({ children }: { children: React.Re
     link: string | null
     isRead: boolean
     createdAt: Date
-  }> = []
-  try {
-    notifications = await prisma.notification.findMany({
+  }>> = prisma.notification
+    .findMany({
       where: { isRead: false },
       orderBy: { createdAt: "desc" },
-      take: 5
+      take: 5,
     })
-  } catch (error) {
-    console.error("[dashboard/layout] Failed to load notifications:", error)
+    .catch((error) => {
+      // A transient DB/pooler outage only blanks the notification badge
+      // instead of taking down the whole dashboard route.
+      console.error("[dashboard/layout] Failed to load notifications:", error)
+      return []
+    })
+  const orgPromise = getOrganization()
+
+  const user = await getCurrentUser()
+  if (!user) {
+    redirect("/")
   }
 
-  // Organization singleton (name/logo/tagline) feeds the sidebar + topbar.
-  const org = await getOrganization()
+  const [permissions, notifications, org] = await Promise.all([
+    getPermissionsForClient(user.id),
+    notificationsPromise,
+    orgPromise,
+  ])
 
   return <DashboardClient notifications={notifications} permissions={permissions} org={org}>{children}</DashboardClient>
 }

@@ -1,7 +1,7 @@
 import prisma from "@/lib/prisma"
 import Link from "next/link"
-import { calculateDues } from "@/lib/dueCalculator"
 import { buildProfitLoss } from "@/lib/financialStatements"
+import { loadMembersWithDues } from "@/lib/membersWithDues"
 import { guardDashboardPage } from "@/lib/page-guard"
 import {
   Users, Wallet, AlertTriangle, Clock, TrendingUp, TrendingDown,
@@ -41,95 +41,104 @@ export default async function DashboardPage() {
   // if the user doesn't have access to this page.
   await guardDashboardPage("Overview", "Dashboard")
 
+  const now = new Date()
 
-  // 1. Fetch Real Data from Database
-  const activeMembers = await prisma.member.count({ where: { status: "ACTIVE", deletedAt: null } })
-  const pendingApprovals = await prisma.member.count({ where: { status: "PENDING", deletedAt: null } })
+  // ── ONE parallel batch for every independent aggregate on the page ──────
+  // PERFORMANCE: this page previously ran ~17 mostly-sequential DB queries,
+  // including fetching EVERY savings row twice (once via member.savings for
+  // the due engine, once per chart) and every member's wish dates as a
+  // separate list. Now:
+  //   - dues come from loadMembersWithDues (groupBy sum, not row transfer)
+  //   - wish dates + trend dates ride along on the same member fetch
+  //   - both charts derive from ONE 8-month savings fetch
+  //   - the unused active-projects count query is gone
+  const [
+    activeMembers,
+    pendingApprovals,
+    totalDepositsAgg,
+    fineAgg,
+    withdrawalsAgg,
+    { members: dbMembers },
+    cashAccounts,
+    bankAccounts,
+    investments,
+    loansDisbursed,
+    plResult,
+    festivals,
+    savingsRows,
+  ] = await Promise.all([
+    prisma.member.count({ where: { status: "ACTIVE", deletedAt: null } }),
+    prisma.member.count({ where: { status: "PENDING", deletedAt: null } }),
+    prisma.savings.aggregate({
+      _sum: { amount: true },
+      where: { type: { notIn: ["FINE", "PENALTY"] } },
+    }),
+    prisma.savings.aggregate({ _sum: { amount: true }, where: { type: "FINE" } }),
+    prisma.savings.aggregate({ _sum: { amount: true }, where: { type: "WITHDRAWAL" } }),
+    loadMembersWithDues(),
+    prisma.account.findMany({
+      where: { isCash: true, status: "ACTIVE" },
+      select: { currentBalance: true },
+    }),
+    prisma.account.findMany({
+      where: { isBank: true, status: "ACTIVE" },
+      select: { currentBalance: true },
+    }),
+    prisma.investment.findMany({
+      where: { status: { in: ["ACTIVE", "PARTIALLY_EXITED"] }, isDeleted: false },
+      select: { currentValue: true, costBasis: true },
+    }),
+    prisma.loan.findMany({
+      where: { status: { in: ["DISBURSED", "DEFAULTED", "REPAID", "CLOSED", "WRITTEN_OFF"] } },
+      select: {
+        principalPaid: true,
+        interestPaid: true,
+        finePaid: true,
+        outstandingBalance: true,
+        totalPayable: true,
+        status: true,
+      },
+    }),
+    buildProfitLoss({
+      fromDate: new Date(now.getFullYear(), 0, 1),
+      toDate: now,
+    }),
+    prisma.festival.findMany({ where: { isActive: true } }),
+    prisma.savings.findMany({
+      where: {
+        type: { notIn: ["FINE", "PENALTY", "WITHDRAWAL"] },
+        // Only rows from the last 8 calendar months (incl. current) — this
+        // single window feeds BOTH the 8-month savings chart and the 6-month
+        // collection chart (a strict subset).
+        createdAt: { gte: new Date(now.getFullYear(), now.getMonth() - 7, 1) },
+      },
+      select: { amount: true, createdAt: true },
+    }),
+  ])
 
-  const totalDepositsAgg = await prisma.savings.aggregate({
-    _sum: { amount: true },
-    where: { type: { notIn: ["FINE", "PENALTY"] } }
-  })
   const membersTotalDeposit = Number(totalDepositsAgg._sum.amount || 0)
-
-  const fineAgg = await prisma.savings.aggregate({ _sum: { amount: true }, where: { type: "FINE" } })
   const fineAmount = Number(fineAgg._sum.amount || 0)
+  const totalPaymentToMembers = Number(withdrawalsAgg._sum.amount || 0)
 
-  // Fetch Active Members with their Savings
-  const dbMembers = await prisma.member.findMany({
-    where: { status: "ACTIVE", deletedAt: null },
-    include: { savings: true },
-  })
-
-  // Fetch all fee setups to calculate dues dynamically
-  const feeSetups = await prisma.feeSetup.findMany()
-
-  // Calculate Due Balance for each member using the dynamic engine.
   // Dashboard "Members Due List" mirrors the dedicated /dashboard/due-list page
   // columns: Mem No · Member Name · Expected · Fines · Paid · Net Due · Actions.
-  const membersWithDues = dbMembers.map((m) => {
-    const dues = calculateDues(m.id, m.membershipDate || m.createdAt, feeSetups, m.savings)
-    return {
+  // Dues were computed once per member inside loadMembersWithDues.
+  const membersWithDues = dbMembers
+    .map((m) => ({
       id: m.id,
       memberNo: m.memberNo,
       fullName: m.fullName,
       phone: m.phone,
-      expected: dues.totalExpected,
-      fines: dues.totalFines,
-      paid: dues.totalPaid,
-      netDue: dues.totalDue,
-    }
-  })
+      expected: m.dues.totalExpected,
+      fines: m.dues.totalFines,
+      paid: m.dues.totalPaid,
+      netDue: m.dues.totalDue,
+    }))
     .filter((m) => m.netDue > 0)
     .sort((a, b) => b.netDue - a.netDue)
     .slice(0, 10)
 
-  const totalDynamicDue = dbMembers.reduce((acc, m) => {
-    const dues = calculateDues(m.id, m.membershipDate || m.createdAt, feeSetups, m.savings)
-    return acc + dues.totalDue
-  }, 0)
-
-  // ── Accounting & Operations (real numbers from the GL engine) ──
-  // Cash in hand / Bank balance come from the Chart-of-Accounts:
-  //   cash accounts  = Account.isCash = true  (sum of currentBalance)
-  //   bank accounts  = Account.isBank = true  (sum of currentBalance)
-  // Fund in investment = sum of Investment.currentValue for ACTIVE / PARTIALLY_EXITED rows.
-  // Income / Expense come from buildProfitLoss for the current financial year.
-  const [cashAccounts, bankAccounts, investments, loansDisbursed, plResult, festivals, membersForWishes] =
-    await Promise.all([
-      prisma.account.findMany({
-        where: { isCash: true, status: "ACTIVE" },
-        select: { currentBalance: true },
-      }),
-      prisma.account.findMany({
-        where: { isBank: true, status: "ACTIVE" },
-        select: { currentBalance: true },
-      }),
-      prisma.investment.findMany({
-        where: { status: { in: ["ACTIVE", "PARTIALLY_EXITED"] }, isDeleted: false },
-        select: { currentValue: true, costBasis: true },
-      }),
-      prisma.loan.findMany({
-        where: { status: { in: ["DISBURSED", "DEFAULTED", "REPAID", "CLOSED", "WRITTEN_OFF"] } },
-        select: {
-          principalPaid: true,
-          interestPaid: true,
-          finePaid: true,
-          outstandingBalance: true,
-          totalPayable: true,
-          status: true,
-        },
-      }),
-      buildProfitLoss({
-        fromDate: new Date(new Date().getFullYear(), 0, 1),
-        toDate: new Date(),
-      }),
-      prisma.festival.findMany({ where: { isActive: true } }),
-      prisma.member.findMany({
-        where: { status: "ACTIVE", deletedAt: null },
-        select: { dateOfBirth: true, marriageDate: true, joiningDate: true, membershipDate: true },
-      }),
-    ])
+  const totalDynamicDue = dbMembers.reduce((acc, m) => acc + m.dues.totalDue, 0)
 
   const cashInHand = cashAccounts.reduce((s, a) => s + Number(a.currentBalance || 0), 0)
   const bankBookBalance = bankAccounts.reduce((s, a) => s + Number(a.currentBalance || 0), 0)
@@ -137,13 +146,6 @@ export default async function DashboardPage() {
 
   const totalIncome = plResult.totalIncome
   const totalExpense = plResult.totalExpenses
-  // "Total Payment to Members" = sum of savings withdrawals (a real,
-  // member-facing outflow). Aggregated separately so the dashboard surfaces it.
-  const withdrawalsAgg = await prisma.savings.aggregate({
-    _sum: { amount: true },
-    where: { type: "WITHDRAWAL" },
-  })
-  const totalPaymentToMembers = Number(withdrawalsAgg._sum.amount || 0)
 
   const totalBalanceOfSomiti = bankBookBalance + cashInHand + fundInInvestment
 
@@ -169,40 +171,24 @@ export default async function DashboardPage() {
       ]
 
   // ── Special wishes: count today's birthdays / anniversaries / festivals ──
-  const today = new Date()
+  // (dates ride along on the due-list member fetch — same ACTIVE set)
   let specialWishes = 0
-  for (const m of membersForWishes) {
-    if (m.dateOfBirth && isSameUTCDay(m.dateOfBirth, today)) specialWishes++
-    if (m.marriageDate && isSameUTCDay(m.marriageDate, today)) specialWishes++
+  for (const m of dbMembers) {
+    if (m.dateOfBirth && isSameUTCDay(m.dateOfBirth, now)) specialWishes++
+    if (m.marriageDate && isSameUTCDay(m.marriageDate, now)) specialWishes++
     const joiningDate = m.joiningDate || m.membershipDate
-    if (joiningDate && isSameUTCDay(joiningDate, today)) specialWishes++
+    if (joiningDate && isSameUTCDay(joiningDate, now)) specialWishes++
   }
   for (const f of festivals) {
-    if (f.month === today.getUTCMonth() + 1 && f.day === today.getUTCDate()) {
+    if (f.month === now.getUTCMonth() + 1 && f.day === now.getUTCDate()) {
       specialWishes += activeMembers // a festival wishes every active member
     }
   }
-
-  // Active projects (real count) and other KPIs reserved for future cards.
-  const activeProjects = await prisma.project.count({
-    where: { status: "ACTIVE", isDeleted: false },
-  })
-  void activeProjects
-  void totalPaymentToMembers
 
   // ---- Chart data ----
   // Savings growth: last 8 months derived from real savings records.
   // IMPORTANT: we group in JS by YYYY-MM, NOT by `prisma.groupBy({ by: ["createdAt"] })`
   // (which would bucket by the exact timestamp and produce one point per row).
-  const now = new Date()
-  const savingsRows = await prisma.savings.findMany({
-    where: {
-      type: { notIn: ["FINE", "PENALTY", "WITHDRAWAL"] },
-      // Only rows from the last 8 calendar months (incl. current).
-      createdAt: { gte: new Date(now.getFullYear(), now.getMonth() - 7, 1) },
-    },
-    select: { amount: true, createdAt: true },
-  })
   const monthBuckets: Record<string, number> = {}
   for (let i = 7; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
@@ -217,27 +203,10 @@ export default async function DashboardPage() {
 
   // Collection trend: REAL monthly collections (last 6 months).
   // "Collections" = deposits actually received from members (excludes fines,
-  // penalties, and withdrawals). Previously this was fabricated as 80% of the
-  // savings series — now sourced from the same Savings ledger with a 6-month
-  // window so the two charts stay related but distinct.
-  const collectionRows = await prisma.savings.findMany({
-    where: {
-      type: { notIn: ["FINE", "PENALTY", "WITHDRAWAL"] },
-      createdAt: { gte: new Date(now.getFullYear(), now.getMonth() - 5, 1) },
-    },
-    select: { amount: true, createdAt: true },
-  })
-  const collectionBuckets: Record<string, number> = {}
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    collectionBuckets[`${d.toLocaleString("en", { month: "short" })} ${String(d.getFullYear()).slice(-2)}`] = 0
-  }
-  for (const row of collectionRows) {
-    const d = new Date(row.createdAt)
-    const key = `${d.toLocaleString("en", { month: "short" })} ${String(d.getFullYear()).slice(-2)}`
-    if (key in collectionBuckets) collectionBuckets[key] += Number(row.amount || 0)
-  }
-  const collectionTrend: TrendPoint[] = Object.entries(collectionBuckets).map(([label, value]) => ({ label, value }))
+  // penalties, and withdrawals). The 6-month window is a strict subset of the
+  // 8-month savings window above (same type filter, same bucketing), so it is
+  // derived from the same rows instead of re-querying the ledger.
+  const collectionTrend: TrendPoint[] = savingsGrowth.slice(-6)
 
   // ── Real trend percentages for the KPI ribbon ──
   // Total Deposit trend = % change of this month's deposits vs last month's.

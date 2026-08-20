@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma"
 import { ok, bad, requirePermissionsAdmin, writeRbacAudit, AUDIT } from "@/lib/permissions/api"
+import { clearPermissionResolverCache } from "@/lib/permissions/resolver"
 
 export const dynamic = "force-dynamic"
 
@@ -17,6 +18,7 @@ export async function DELETE(
     .catch(() => null)
   if (!deleted) return bad("Override not found for this user/permission.", 404)
 
+  clearPermissionResolverCache()
   await writeRbacAudit({
     actorId: auth.id,
     targetUserId: userId,

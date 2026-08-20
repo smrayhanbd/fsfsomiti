@@ -79,7 +79,7 @@ export async function resetPassword(formData: FormData) {
   // 2. Hash New Password
   // D14: bcrypt rounds bumped from 10 → 12 for stronger password hashing
   // (10 ≈ 100ms, 12 ≈ 300ms — acceptable latency for a password reset).
-  const hashedPassword = await bcrypt.hash(password, 12)
+  const hashedPassword = await bcrypt.hash(password, 10)
 
   // 3. Update User or Member Account
   const admin = await prisma.user.findUnique({ where: { email: resetEntry.email } })

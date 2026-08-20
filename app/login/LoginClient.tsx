@@ -67,21 +67,18 @@ export default function LoginClient({ org }: { org: OrgInfo }) {
       setError("Invalid credentials. Please check your Email/Member ID and Password.")
       setLoading(false)
     } else if (res?.ok) {
-      // Check if this is an MFA-pending session (step 1 of 2-factor login).
-      // The credentials provider returns role="MFA_PENDING" when the user has
-      // 2FA enabled; the session callback exposes `mfaPending: true`.
-      try {
-        const sessionRes = await fetch("/api/auth/session").then((r) => r.json())
-        if (sessionRes?.mfaPending && sessionRes?.user?.id) {
-          router.push(`/login/mfa?userId=${sessionRes.user.id}`)
-          return
-        }
-      } catch {
-        // Session fetch failed — proceed with normal redirect.
-      }
-      // The middleware (middleware.ts) routes to /dashboard (Admin) or /portal (Member)
+      // Navigate straight to the dashboard — no extra /api/auth/session fetch
+      // and no router.refresh() (each added a full round trip to every login).
+      // Role routing happens server-side in this single navigation:
+      //   - MEMBER          → the proxy redirects /dashboard to /portal
+      //   - MFA_PENDING     → the proxy redirects to /login/mfa?userId=…
+      //                        (2FA users still land on the verification screen;
+      //                         the client no longer has to ask the session first)
+      //   - ADMIN/SUPER_ADMIN → the dashboard renders directly
       router.push("/dashboard")
-      router.refresh()
+    } else {
+      // Unexpected response shape — re-enable the form so the user can retry.
+      setLoading(false)
     }
   }
 

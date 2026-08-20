@@ -73,7 +73,7 @@ export async function changeOwnPassword(formData: FormData): Promise<ActionResul
     const matched = await bcrypt.compare(current, target.password)
     if (!matched) return { ok: false, error: "Current password is incorrect." }
 
-    const hashed = await bcrypt.hash(next, 12)
+    const hashed = await bcrypt.hash(next, 10)
     await prisma.user.update({ where: { id: user.id }, data: { password: hashed } })
     return { ok: true }
   } catch (e) {

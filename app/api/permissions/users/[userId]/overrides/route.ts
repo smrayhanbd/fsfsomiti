@@ -8,6 +8,7 @@ import {
   writeRbacAudit,
   AUDIT,
 } from "@/lib/permissions/api"
+import { clearPermissionResolverCache } from "@/lib/permissions/resolver"
 import { z } from "zod"
 
 export const dynamic = "force-dynamic"
@@ -92,6 +93,7 @@ export async function POST(
     update: { effect: parsed.data.effect, reason: parsed.data.reason ?? null, createdBy: auth.id },
     create: { userId, permissionId: perm.id, effect: parsed.data.effect, reason: parsed.data.reason ?? null, createdBy: auth.id },
   })
+  clearPermissionResolverCache()
   await writeRbacAudit({
     actorId: auth.id,
     targetUserId: userId,
