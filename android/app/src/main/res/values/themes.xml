@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Somiti" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash</item>
+        <item name="android:statusBarColor">@color/somiti_dark</item>
+        <item name="android:navigationBarColor">@color/somiti_dark</item>
+        <item name="colorPrimary">@color/somiti_gold</item>
+        <item name="colorPrimaryDark">@color/somiti_dark</item>
+        <item name="colorAccent">@color/somiti_gold</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

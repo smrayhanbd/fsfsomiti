@@ -713,82 +713,6 @@ export default function DepositRequestClient({
         </div>
       </div>
 
-      {/* ── DEPOSIT DESTINATIONS ────────────────────────────────────── */}
-      <Card className="overflow-hidden rounded-2xl border-border-base bg-surface shadow-sm">
-        <SectionHeader
-          step={1}
-          icon={Building2}
-          title="Somiti Accounts — Deposit Here First"
-          description="Send money to one of the accounts below, then come back and submit your request with the slip."
-          iconClass="bg-primary/10 text-primary"
-        />
-        <CardContent className="p-5 sm:p-6">
-          {bankAccounts.length === 0 ? (
-            <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4 text-sm text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <div>
-                <p className="font-semibold">No active bank / mobile accounts configured.</p>
-                <p className="mt-0.5 text-xs">Please contact management for deposit instructions before submitting a request.</p>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {(["CASH", "BANK", "MOBILE"] as MethodGroup[]).map((g) => {
-                const groupCfg = METHOD_GROUPS.find((m) => m.group === g)!
-                const accounts = banksByGroup[g]
-                if (accounts.length === 0) return null
-                const Icon = groupCfg.icon
-                return (
-                  <div
-                    key={g}
-                    className="rounded-xl border border-border-base bg-subtle/30 p-4"
-                  >
-                    <div className="mb-3 flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        {groupCfg.label}
-                      </p>
-                    </div>
-                    <ul className="space-y-3">
-                      {accounts.map((a) => (
-                        <li key={a.id} className="rounded-lg border border-border-base bg-surface p-3">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="truncate text-sm font-bold text-foreground">{a.accountName}</p>
-                            {a.isDefault && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50">
-                                <Sparkles className="h-2.5 w-2.5" />
-                                Default
-                              </span>
-                            )}
-                          </div>
-                          {a.bankName && (
-                            <p className="mt-0.5 text-xs text-muted-foreground">{a.bankName}</p>
-                          )}
-                          {a.accountNumber && (
-                            <div className="mt-1.5 flex items-center justify-between gap-1 rounded-md bg-subtle px-2 py-1">
-                              <code className="font-mono text-xs text-foreground">{a.accountNumber}</code>
-                              <CopyButton value={a.accountNumber} label="Account number" />
-                            </div>
-                          )}
-                          {a.branch && (
-                            <p className="mt-1 text-[11px] text-muted-foreground">{a.branch}</p>
-                          )}
-                          <p className="mt-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                            {PAYMENT_METHOD_LABEL[a.paymentMethod]}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {/* ── FORM + RECENT REQUESTS ──────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         {/* Form (3 cols) */}
@@ -1303,6 +1227,83 @@ export default function DepositRequestClient({
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* ── DEPOSIT DESTINATIONS ────────────────────────────────────── */}
+      <Card className="overflow-hidden rounded-2xl border-border-base bg-surface shadow-sm">
+        <SectionHeader
+          step={1}
+          icon={Building2}
+          title="Somiti Accounts — Deposit Here First"
+          description="Send money to one of the accounts below, then come back and submit your request with the slip."
+          iconClass="bg-primary/10 text-primary"
+        />
+        <CardContent className="p-5 sm:p-6">
+          {bankAccounts.length === 0 ? (
+            <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4 text-sm text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <div>
+                <p className="font-semibold">No active bank / mobile accounts configured.</p>
+                <p className="mt-0.5 text-xs">Please contact management for deposit instructions before submitting a request.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {(["CASH", "BANK", "MOBILE"] as MethodGroup[]).map((g) => {
+                const groupCfg = METHOD_GROUPS.find((m) => m.group === g)!
+                const accounts = banksByGroup[g]
+                if (accounts.length === 0) return null
+                const Icon = groupCfg.icon
+                return (
+                  <div
+                    key={g}
+                    className="rounded-xl border border-border-base bg-subtle/30 p-4"
+                  >
+                    <div className="mb-3 flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        {groupCfg.label}
+                      </p>
+                    </div>
+                    <ul className="space-y-3">
+                      {accounts.map((a) => (
+                        <li key={a.id} className="rounded-lg border border-border-base bg-surface p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="truncate text-sm font-bold text-foreground">{a.accountName}</p>
+                            {a.isDefault && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50">
+                                <Sparkles className="h-2.5 w-2.5" />
+                                Default
+                              </span>
+                            )}
+                          </div>
+                          {a.bankName && (
+                            <p className="mt-0.5 text-xs text-muted-foreground">{a.bankName}</p>
+                          )}
+                          {a.accountNumber && (
+                            <div className="mt-1.5 flex items-center justify-between gap-1 rounded-md bg-subtle px-2 py-1">
+                              <code className="font-mono text-xs text-foreground">{a.accountNumber}</code>
+                              <CopyButton value={a.accountNumber} label="Account number" />
+                            </div>
+                          )}
+                          {a.branch && (
+                            <p className="mt-1 text-[11px] text-muted-foreground">{a.branch}</p>
+                          )}
+                          <p className="mt-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                            {PAYMENT_METHOD_LABEL[a.paymentMethod]}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
     </div>
   )
 }

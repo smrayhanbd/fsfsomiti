@@ -1,0 +1,13 @@
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Release signing material — never commit these.
+# The keystore is generated once and must be kept to sign future updates.
+keystore.properties
+keystore/

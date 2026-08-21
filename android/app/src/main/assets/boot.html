@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Somiti MS</title>
+<style>
+  :root {
+    --bg: #1a1a1a;
+    --card: #242424;
+    --input-bg: #161616;
+    --border: #3a3a3a;
+    --gold: #c9a84c;
+    --gold-bright: #e2c76b;
+    --text: #f5f5f5;
+    --muted: #9a9a9a;
+    --error: #ff7b72;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans Bengali", sans-serif;
+    background: radial-gradient(1200px 600px at 50% -10%, #2a2a1e 0%, var(--bg) 55%);
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .wrap { width: 100%; max-width: 380px; text-align: center; }
+  .logo { margin: 0 auto 16px; }
+  h1 { font-size: 26px; font-weight: 700; letter-spacing: .5px; }
+  h1 span { color: var(--gold); }
+  .tag { color: var(--muted); font-size: 13px; margin-top: 6px; }
+
+  .card {
+    margin-top: 26px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px 20px;
+    text-align: left;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .45);
+  }
+  label { display: block; font-size: 13px; color: var(--gold); font-weight: 600; margin-bottom: 8px; }
+  .row { display: flex; gap: 10px; }
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: 13px 14px;
+    font-size: 15px;
+    background: var(--input-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    outline: none;
+  }
+  input:focus { border-color: var(--gold); }
+  button {
+    padding: 13px 18px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a1a1a;
+    background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+    border: none;
+    border-radius: 10px;
+    white-space: nowrap;
+  }
+  button:active { transform: scale(.98); }
+  .hint { margin-top: 14px; font-size: 12px; color: var(--muted); line-height: 1.7; }
+  .hint code { color: var(--gold); background: var(--input-bg); padding: 1px 5px; border-radius: 4px; }
+  .bn { display: block; margin-top: 4px; }
+  .error { margin-top: 10px; font-size: 13px; color: var(--error); display: none; }
+
+  .connecting { display: none; }
+  .connecting p { margin-top: 18px; font-size: 14px; color: var(--muted); word-break: break-all; }
+  .spinner {
+    width: 44px;
+    height: 44px;
+    margin: 0 auto;
+    border: 3px solid var(--border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin .9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .status { margin-top: 20px; font-size: 12px; color: var(--muted); opacity: .8; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="setup">
+      <svg class="logo" width="72" height="72" viewBox="0 0 108 108" aria-hidden="true">
+        <path d="M 24,64 a 15,15 0 1,0 30,0 a 15,15 0 1,0 -30,0" fill="#c9a84c" stroke="#101010" stroke-width="3"/>
+        <path d="M 31.5,64 a 7.5,7.5 0 1,0 15,0 a 7.5,7.5 0 1,0 -15,0" fill="#141414"/>
+        <path d="M 54,64 a 15,15 0 1,0 30,0 a 15,15 0 1,0 -30,0" fill="#c9a84c" stroke="#101010" stroke-width="3"/>
+        <path d="M 61.5,64 a 7.5,7.5 0 1,0 15,0 a 7.5,7.5 0 1,0 -15,0" fill="#141414"/>
+        <path d="M 39,41 a 15,15 0 1,0 30,0 a 15,15 0 1,0 -30,0" fill="#e2c76b" stroke="#101010" stroke-width="3"/>
+        <path d="M 46.5,41 a 7.5,7.5 0 1,0 15,0 a 7.5,7.5 0 1,0 -15,0" fill="#141414"/>
+        <rect x="52.6" y="36" width="2.8" height="10" fill="#c9a84c"/>
+      </svg>
+      <h1>Somiti <span>MS</span></h1>
+      <p class="tag">Savings &amp; loan co-operative management</p>
+
+      <div class="card">
+        <label for="url">Server address</label>
+        <div class="row">
+          <input id="url" type="text" inputmode="url" autocapitalize="off"
+                 autocomplete="off" spellcheck="false"
+                 placeholder="http://192.168.0.100:3000">
+          <button id="connect" type="button">Connect</button>
+        </div>
+        <p id="error" class="error"></p>
+        <p class="hint">
+          Enter the address where the Somiti MS server is running —
+          e.g. <code>http://192.168.0.100:3000</code> on your Wi-Fi, or your
+          deployed URL like <code>https://fsfsomiti.vercel.app</code>.
+          <span class="bn">সার্ভার ঠিকানা লিখে Connect চাপুন।</span>
+        </p>
+      </div>
+    </div>
+
+    <div id="connecting" class="connecting">
+      <div class="spinner"></div>
+      <p>Connecting to<br><strong id="target"></strong></p>
+    </div>
+
+    <p class="status" id="version"></p>
+  </div>
+
+<script>
+(function () {
+  var KEY = 'somiti_server_url';
+  var bridge = window.SomitiApp;
+
+  function readSaved() {
+    try { if (bridge && bridge.savedServerUrl()) return bridge.savedServerUrl(); } catch (e) {}
+    try { return localStorage.getItem(KEY); } catch (e) {}
+    return null;
+  }
+
+  function persist(url) {
+    try { if (bridge) bridge.saveServerUrl(url); } catch (e) {}
+    try { localStorage.setItem(KEY, url); } catch (e) {}
+  }
+
+  // Startup entry point: the login page when logged out, /portal when a
+  // session cookie exists (the web app then routes admins to /dashboard).
+  // Falls back to the plain login URL if the native bridge is unavailable.
+  function entryUrlFor(url) {
+    var base = url.replace(/\/+$/, '');
+    try {
+      if (bridge) return bridge.entryUrlFor(base);
+    } catch (e) {}
+    return base + '/login';
+  }
+
+  var saved = readSaved();
+  var forceSetup = location.hash === '#setup';
+  var defaultUrl = '';
+  try { if (bridge) defaultUrl = bridge.defaultServerUrl() || ''; } catch (e) {}
+
+  var version = '';
+  try { if (bridge) version = bridge.appVersion() || ''; } catch (e) {}
+  if (version) document.getElementById('version').textContent = 'v' + version;
+
+  function startConnecting(url) {
+    document.getElementById('setup').style.display = 'none';
+    document.getElementById('connecting').style.display = 'block';
+    document.getElementById('target').textContent = url;
+  }
+
+  // Saved server (or the build-time Vercel default) boots straight into the
+  // app; #setup (opened from the offline dialog) always shows the form.
+  if (!forceSetup && saved) {
+    var entry = entryUrlFor(saved);
+    startConnecting(entry);
+    location.replace(entry);
+    return;
+  }
+  if (!forceSetup && !saved && defaultUrl) {
+    persist(defaultUrl);
+    var defEntry = entryUrlFor(defaultUrl);
+    startConnecting(defEntry);
+    location.replace(defEntry);
+    return;
+  }
+
+  document.getElementById('url').value = saved || defaultUrl || '';
+
+  function warn(msg) {
+    var el = document.getElementById('error');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  function connect() {
+    var v = document.getElementById('url').value.trim();
+    if (!v) return warn('Please enter the server address.');
+    if (!/^https?:\/\//i.test(v)) v = 'http://' + v;
+    try {
+      var u = new URL(v);
+      if (!u.hostname) throw new Error('no host');
+    } catch (e) {
+      return warn('That address looks wrong. Try something like http://192.168.0.100:3000');
+    }
+    v = v.replace(/\/+$/, '');
+    persist(v);
+    var entry = entryUrlFor(v);
+    startConnecting(entry);
+    location.replace(entry);
+  }
+
+  document.getElementById('connect').addEventListener('click', connect);
+  document.getElementById('url').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') connect();
+  });
+})();
+</script>
+</body>
+</html>

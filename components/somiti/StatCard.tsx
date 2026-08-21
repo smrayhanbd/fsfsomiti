@@ -55,7 +55,7 @@ export default function StatCard({
       <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="t-overline text-muted-ink">{label}</p>
-          <p className="t-h2 t-num mt-1 truncate text-primary-ink">{value}</p>
+          <p className="t-stat-value t-num mt-1 truncate text-primary-ink">{value}</p>
           {hint && <p className="t-caption mt-1 text-muted-ink truncate">{hint}</p>}
           {trend && (
             <div
