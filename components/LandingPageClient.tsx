@@ -11,7 +11,7 @@ import {
   Lock, Sparkles, ChevronDown, Users, Mail, Phone, Globe, MapPin, Menu,
   Vote, FileText, Wallet, BellRing, MessageCircle, HandCoins, Home,
   PiggyBank, Briefcase, Rocket, HeartHandshake, Landmark, BadgeCheck,
-  KeyRound, Cpu, Eye, Banknote,
+  KeyRound, Cpu, Eye, Banknote, Smartphone, Monitor, ArrowDownToLine,
 } from "lucide-react"
 import { useMounted } from "@/lib/useMounted"
 import { useTheme } from "next-themes"
@@ -43,10 +43,12 @@ interface StatItem {
   suffix?: string
 }
 
-/** Security/trust badge shown in the marquee. */
-interface SecurityBadgeItem {
-  label?: string
-  icon?: string
+/** One downloadable platform (Android APK / Windows EXE). */
+export interface SoftwarePlatform {
+  url?: string | null
+  version?: string | null
+  sizeBytes?: number | null
+  updatedAt?: string | Date | null
 }
 
 /** Shape of the SiteContent document consumed by the landing page. */
@@ -60,7 +62,6 @@ export interface LandingContent {
   aboutContent?: string
   visionTitle?: string
   visionContent?: string
-  transparency?: string
   /** 7 community pillars */
   whyJoinUs?: LandingContentItem[]
   /** Member-portal transparency features */
@@ -69,12 +70,15 @@ export interface LandingContent {
   howItWorks?: LandingContentItem[]
   /** Top-of-page stat strip */
   stats?: StatItem[]
-  /** Horizontal scrolling security/trust badges */
-  securityBadges?: SecurityBadgeItem[]
   facilities?: LandingContentItem[]
   management?: LandingContentItem[]
   projects?: LandingContentItem[]
   activities?: LandingContentItem[]
+  /** Download Software section (hidden until an installer URL exists) */
+  softwareTitle?: string | null
+  softwareDescription?: string | null
+  androidApp?: SoftwarePlatform | null
+  windowsApp?: SoftwarePlatform | null
 }
 
 /* ------------------------------------------------------------------ *
@@ -119,32 +123,69 @@ function ThemeButton() {
 }
 
 /* ------------------------------------------------------------------ *
- * Security marquee — renders the badges twice in a single animated
- * track so the loop is seamless (translateX -50%). Pause on hover.
+ * Download card — one platform (Android APK / Windows EXE) in the
+ * "Download Software" section. Rendered only when the admin has
+ * uploaded that platform's installer from the site-content settings.
  * ------------------------------------------------------------------ */
-function SecurityMarquee({ badges }: { badges: SecurityBadgeItem[] }) {
-  if (!badges.length) return null
-  const loop = [...badges, ...badges]
+function DownloadCard({
+  platform,
+  fileLabel,
+  fileBase,
+  ext,
+  url,
+  version,
+  sizeBytes,
+  updatedAt,
+  icon: Icon,
+  iconClass,
+}: {
+  platform: string
+  fileLabel: string
+  fileBase: string
+  ext: string
+  url: string
+  version?: string | null
+  sizeBytes?: number | null
+  updatedAt?: string | Date | null
+  icon: React.ComponentType<{ className?: string }>
+  iconClass: string
+}) {
+  const size =
+    sizeBytes && sizeBytes > 0
+      ? sizeBytes / (1024 * 1024) >= 1
+        ? `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
+        : `${Math.max(1, Math.round(sizeBytes / 1024))} KB`
+      : null
+  const updated = updatedAt ? new Date(updatedAt).toLocaleDateString() : null
+
   return (
-    <div className="marquee-host marquee-mask relative overflow-hidden py-2">
-      <div
-        className="marquee-track gap-3"
-        style={{ ["--marquee-duration" as string]: `${Math.max(28, badges.length * 6)}s` }}
-      >
-        {loop.map((b, i) => (
-          <div
-            key={i}
-            className="card-premium flex items-center gap-2.5 whitespace-nowrap px-4 py-2.5"
-          >
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-gradient-soft text-brand">
-              <NamedIcon name={b.icon} className="h-4 w-4" />
-            </span>
-            <span className="t-body font-semibold text-primary-ink">{b.label}</span>
-            <BadgeCheck className="h-4 w-4 text-success" aria-hidden />
-          </div>
-        ))}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: false, amount: 0.3 }}
+      transition={{ duration: 0.5 }}
+      className="card-premium card-premium-hover w-full max-w-sm p-6 text-center sm:p-8"
+    >
+      <div className={`mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl ${iconClass}`}>
+        <Icon className="h-8 w-8" />
       </div>
-    </div>
+      <h3 className="t-h2 text-primary-ink">{platform}</h3>
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 t-caption text-muted-ink">
+        {version && (
+          <span className="rounded-full bg-brand-gradient-soft px-2.5 py-0.5 font-bold text-brand">{version}</span>
+        )}
+        {size && <span>{size}</span>}
+        {updated && <span>· Updated {updated}</span>}
+      </div>
+      <a href={url} download className="mt-6 block no-underline hover:no-underline">
+        <Button size="lg" className="brand-gradient h-12 w-full text-base shadow-brand-glow">
+          <ArrowDownToLine className="mr-2 h-5 w-5" /> Download {fileLabel}
+        </Button>
+      </a>
+      <p className="mt-3 t-caption text-muted-ink">
+        Free download · {fileLabel} file · saves as {fileBase}.{ext}
+      </p>
+    </motion.div>
   )
 }
 
@@ -166,17 +207,6 @@ export default function LandingPageClient({ content, org }: { content: LandingCo
         { value: "৳12 Cr+", label: "Total Deposits" },
         { value: "120+", label: "Loans Disbursed" },
         { value: "99.9%", label: "Uptime" },
-      ]
-
-  const securityBadges: SecurityBadgeItem[] = (content.securityBadges && content.securityBadges.length)
-    ? content.securityBadges
-    : [
-        { label: "256-bit Encrypted Data", icon: "KeyRound" },
-        { label: "Trusted by Huge Members", icon: "Users" },
-        { label: "Automated Payouts", icon: "Banknote" },
-        { label: "A Group of Trusted People", icon: "ShieldCheck" },
-        { label: "Transparent Ledger", icon: "Eye" },
-        { label: "Bank-Grade Security", icon: "Landmark" },
       ]
 
   const pillars: LandingContentItem[] = (content.whyJoinUs && content.whyJoinUs.length)
@@ -228,13 +258,14 @@ export default function LandingPageClient({ content, org }: { content: LandingCo
             <span className="truncate text-sm font-bold text-primary-ink sm:max-w-[160px] md:max-w-[240px] lg:max-w-[300px]" title={org.name}>{org.name}</span>
           </Link>
 
-          {/* Desktop nav — only on lg+ where there's room for all 6 links + buttons */}
+          {/* Desktop nav — only on lg+ where there's room for all links + buttons */}
           <nav className="hidden items-center gap-6 lg:flex">
             <Link href="#about" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">About Us</Link>
             <Link href="#pillars" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">What We Do</Link>
             <Link href="#portal" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">Transparency</Link>
             <Link href="#management" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">Management</Link>
             <Link href="#activities" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">Activities</Link>
+            <Link href="#download" className="t-body whitespace-nowrap font-medium text-secondary-ink transition-colors hover:text-primary-ink">Download</Link>
           </nav>
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
@@ -261,6 +292,8 @@ export default function LandingPageClient({ content, org }: { content: LandingCo
                   <DropdownMenuItem render={<Link href="#pillars" className="flex w-full cursor-pointer items-center p-2" />}>What We Do</DropdownMenuItem>
                   <DropdownMenuItem render={<Link href="#portal" className="flex w-full cursor-pointer items-center p-2" />}>Member Portal</DropdownMenuItem>
                   <DropdownMenuItem render={<Link href="#management" className="flex w-full cursor-pointer items-center p-2" />}>Management</DropdownMenuItem>
+                  <DropdownMenuItem render={<Link href="#activities" className="flex w-full cursor-pointer items-center p-2" />}>Activities</DropdownMenuItem>
+                  <DropdownMenuItem render={<Link href="#download" className="flex w-full cursor-pointer items-center p-2" />}>Download App</DropdownMenuItem>
                   <DropdownMenuItem render={<Link href="/policy" className="flex w-full cursor-pointer items-center p-2" />}>Policy</DropdownMenuItem>
                   <DropdownMenuItem render={<Link href="/login" className="flex w-full cursor-pointer items-center p-2" />}>Login</DropdownMenuItem>
                   <DropdownMenuItem render={<Link href="/register" className="flex w-full cursor-pointer items-center p-2" />}>Register</DropdownMenuItem>
@@ -412,12 +445,6 @@ export default function LandingPageClient({ content, org }: { content: LandingCo
                 </motion.div>
               </div>
             </motion.div>
-          </div>
-
-          {/* ─── Security Marquee ─── */}
-          <div className="mt-10 sm:mt-16 lg:mt-20">
-            <p className="mb-4 text-center t-overline text-muted-ink">Trusted · Regulated · Bank-Grade</p>
-            <SecurityMarquee badges={securityBadges} />
           </div>
         </div>
       </section>
@@ -608,32 +635,65 @@ export default function LandingPageClient({ content, org }: { content: LandingCo
         </div>
       </section>
 
-      {/* ─── Transparency band ─── */}
-      <section className="relative overflow-hidden py-12 sm:py-16 lg:py-20">
-        <div className="absolute inset-0 brand-gradient" />
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.12),transparent_70%)]" />
-        <motion.div
-          className="relative z-10 mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8"
-          initial={{ opacity: 0, scale: 0.95 }}
-          whileInView={{ opacity: 1, scale: 1 }}
-          viewport={{ once: false, amount: 0.3 }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
-        >
-          <div className="mb-6 inline-block rounded-full bg-white/20 p-3 backdrop-blur-md">
-            <Lock className="h-8 w-8 text-white" />
+      {/* ─── Download Software ─── */}
+      {(content.androidApp?.url || content.windowsApp?.url) && (
+        <section id="download" className="section-tint-blue relative overflow-hidden py-12 sm:py-20 lg:py-24">
+          <div className="pointer-events-none absolute top-10 left-1/4 h-72 w-72 rounded-full bg-[var(--brand-primary)] opacity-[0.06] blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 right-1/4 h-72 w-72 rounded-full bg-[var(--brand-violet)] opacity-[0.06] blur-3xl" />
+          <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <motion.div
+              className="mx-auto mb-8 max-w-2xl text-center sm:mb-14"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: false, amount: 0.3 }}
+              transition={{ duration: 0.5 }}
+            >
+              <p className="t-overline mb-3 text-brand">Get the App</p>
+              <h2 className="t-display mb-4 text-primary-ink">
+                {content.softwareTitle || "Take your somiti everywhere"}
+              </h2>
+              {content.softwareDescription ? (
+                <div className="t-body-lg text-justify text-muted-ink" dangerouslySetInnerHTML={{ __html: content.softwareDescription }} />
+              ) : (
+                <p className="t-body-lg text-justify text-muted-ink">
+                  Manage your savings, requests, and statements from your phone or PC — download the official app.
+                </p>
+              )}
+            </motion.div>
+
+            <div className="mx-auto flex max-w-3xl flex-col items-center justify-center gap-6 sm:flex-row">
+              {content.androidApp?.url && (
+                <DownloadCard
+                  platform="Android App"
+                  fileLabel="APK"
+                  fileBase="SomitiMS-Android"
+                  ext="apk"
+                  url="/api/downloads/android"
+                  version={content.androidApp.version}
+                  sizeBytes={content.androidApp.sizeBytes}
+                  updatedAt={content.androidApp.updatedAt}
+                  icon={Smartphone}
+                  iconClass="bg-success-soft text-success"
+                />
+              )}
+              {content.windowsApp?.url && (
+                <DownloadCard
+                  platform="Windows App"
+                  fileLabel="EXE"
+                  fileBase="SomitiMS-Setup"
+                  ext="exe"
+                  url="/api/downloads/windows"
+                  version={content.windowsApp.version}
+                  sizeBytes={content.windowsApp.sizeBytes}
+                  updatedAt={content.windowsApp.updatedAt}
+                  icon={Monitor}
+                  iconClass="bg-info-soft text-info"
+                />
+              )}
+            </div>
           </div>
-          <h2 className="t-display mb-6 text-white">Transparency &amp; Reporting</h2>
-          {content.transparency && (
-            <div className="prose-invert prose prose-lg max-w-none text-justify text-white/90" dangerouslySetInnerHTML={{ __html: content.transparency }} />
-          )}
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-3 text-white/90 t-body sm:mt-8 sm:gap-x-6">
-            <span className="flex items-center gap-2"><Eye className="h-4 w-4" /> Live bank statements</span>
-            <span className="flex items-center gap-2"><FileText className="h-4 w-4" /> Signed meeting minutes</span>
-            <span className="flex items-center gap-2"><Vote className="h-4 w-4" /> Verifiable voting</span>
-            <span className="flex items-center gap-2"><BellRing className="h-4 w-4" /> SMS + email alerts</span>
-          </div>
-        </motion.div>
-      </section>
+        </section>
+      )}
 
       {/* ─── Management Committee ─── */}
       <section id="management" className="section-tint-amber relative overflow-hidden py-12 sm:py-20 lg:py-24">

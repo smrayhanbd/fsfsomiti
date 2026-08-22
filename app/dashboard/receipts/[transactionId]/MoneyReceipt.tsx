@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
@@ -112,6 +113,20 @@ function groupForMethod(method: PaymentMethod): "CASH" | "BANK" | "MOBILE" {
 
 const METHOD_GROUP_ICON = { CASH: Wallet, BANK: Landmark, MOBILE: Smartphone }
 
+// The voucher is designed at a fixed desktop width (max-w-4xl = 56rem). On
+// narrower viewports (phones) we don't reflow it — the fixed rows (header
+// band, 2-col meta row, 3-col signature row) would overflow the screen or
+// break the composition. Instead the card keeps this exact width and is
+// zoomed down proportionally, so mobile sees the identical desktop view,
+// just fitted to the screen. Print is always full-scale (reset in
+// globals.css @media print).
+const RECEIPT_DESIGN_WIDTH = 896
+
+// SSR-safe layout effect — plain useLayoutEffect warns when the component
+// is server-rendered.
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect
+
 // ─── Component ──────────────────────────────────────────────────────────
 export default function MoneyReceipt({
   txn,
@@ -122,6 +137,24 @@ export default function MoneyReceipt({
   bankAccounts,
 }: Props) {
   const router = useRouter()
+
+  // Scale-to-fit — measure the available content width and zoom the 896px
+  // voucher down when it doesn't fit. `zoom` (not `transform: scale`) keeps
+  // the card in normal document flow, so page height and the print layout
+  // need no manual compensation.
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [zoom, setZoom] = useState(1)
+
+  useIsomorphicLayoutEffect(() => {
+    const wrap = wrapRef.current
+    if (!wrap) return
+    const update = () =>
+      setZoom(Math.min(1, wrap.clientWidth / RECEIPT_DESIGN_WIDTH))
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(wrap)
+    return () => observer.disconnect()
+  }, [])
 
   const isDeposit = txn.transactionType === "DEPOSIT"
   const title = isDeposit ? "MONEY RECEIPT" : "WITHDRAWAL VOUCHER"
@@ -161,7 +194,14 @@ export default function MoneyReceipt({
       </div>
 
       {/* ─── The printable voucher ─────────────────────────────────────── */}
-      <div className="receipt-print-area money-receipt max-w-4xl mx-auto bg-white text-slate-900 rounded-2xl shadow-xl overflow-hidden border border-slate-200 print:shadow-none print:rounded-none print:border-0">
+      {/* `@container` + `@md:` variants below make the inner grids respond to
+          the voucher's own (fixed) width rather than the viewport — otherwise
+          phones would stack sections even though the card is scaled desktop. */}
+      <div ref={wrapRef} className="w-full">
+        <div
+          className="@container receipt-scale-card receipt-print-area money-receipt mx-auto bg-white text-slate-900 rounded-2xl shadow-xl overflow-hidden border border-slate-200 print:shadow-none print:rounded-none print:border-0"
+          style={{ width: RECEIPT_DESIGN_WIDTH, zoom }}
+        >
         {/* Accent strip */}
         <div className={`h-2 ${isDeposit ? "bg-emerald-500" : "bg-rose-500"}`} />
 
@@ -229,7 +269,7 @@ export default function MoneyReceipt({
         </div>
 
         {/* Payee/Payer + amount block */}
-        <div className="px-8 py-5 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        <div className="px-8 py-5 grid grid-cols-1 @md:grid-cols-2 gap-6 items-start">
           {/* Member */}
           <div>
             <p className="text-[11px] uppercase tracking-widest text-slate-400 font-semibold mb-1">
@@ -293,7 +333,7 @@ export default function MoneyReceipt({
               <p className="text-[11px] uppercase tracking-widest text-indigo-600 font-bold mb-2 flex items-center gap-1.5">
                 <Building2 className="h-3.5 w-3.5" /> For Future Deposits — Use Any of the Following Accounts
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 @md:grid-cols-2 gap-2">
                 {bankAccounts.map((b) => {
                   const GroupIcon = METHOD_GROUP_ICON[groupForMethod(b.paymentMethod)]
                   return (
@@ -356,6 +396,7 @@ export default function MoneyReceipt({
           <p className="mt-1.5">
             This is a computer-generated voucher · Voucher No <span className="font-mono">{txn.voucherNo}</span> · Generated on {formatDate(new Date().toISOString())}
           </p>
+        </div>
         </div>
       </div>
     </div>

@@ -918,14 +918,24 @@ model SiteContent {
   howItWorks       Json     @default("[]") // Array of {step, title, description}
   // Top-of-page stat strip (members, savings, projects, etc.)
   stats            Json     @default("[]") // Array of {value, label, suffix}
-  // Horizontal scrolling security/trust badges (256-bit Encrypted Data, Trusted by N Members, Automated Payouts, A group of trusted peoples, Transparent Ledger, Bank-Grade Security)
-  securityBadges   Json     @default("[]") // Array of {label, icon}
-  transparency     String   @default("100% Transparency in Somiti Management. All transactions are recorded in real-time ledgers. Members have 24/7 access to their balances, and automated receipts ensure accountability for every Taka.")
   policyContent    String?  @db.Text
   facilities       Json     @default("[]") // Array of {icon, title, description}
   management       Json     @default("[]") // Array of {name, role, photoUrl, bio}
   activities       Json     @default("[]") // Array of {title, date, description}
   projects         Json     @default("[]") // Array of {title, status, description}
+  // "Download Software" section — APK (Android) + EXE (Windows) served from
+  // the landing page. URL/size/updatedAt are set when an admin uploads the
+  // binary from the Landing Page Content settings; version is typed by hand.
+  softwareTitle       String?  // Section heading (defaults on render)
+  softwareDescription String?  @db.Text // Short paragraph under the heading (HTML)
+  androidAppUrl       String?  @db.Text // Cloudinary raw URL to the .apk
+  androidAppVersion   String?
+  androidAppSizeBytes Int?
+  androidAppUpdatedAt DateTime?
+  windowsAppUrl       String?  @db.Text // Cloudinary raw URL to the .exe
+  windowsAppVersion   String?
+  windowsAppSizeBytes Int?
+  windowsAppUpdatedAt DateTime?
   updatedAt        DateTime @updatedAt
 }
 

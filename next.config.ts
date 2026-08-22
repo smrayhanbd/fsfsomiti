@@ -12,7 +12,12 @@ const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
-      bodySizeLimit: '20mb',
+      // 110mb so admins can upload software installers (.apk / .exe, capped
+      // at 100 MB in lib/upload.ts) through the site-content server action.
+      // Note: serverless platforms (e.g. Vercel) enforce their own lower
+      // request-body limits — large installs are intended for self-hosted
+      // (Docker) deployments.
+      bodySizeLimit: '110mb',
     },
     // Tree-shake large barrel-file packages that are NOT already in Next's
     // default optimize list (lucide-react and date-fns are). recharts and

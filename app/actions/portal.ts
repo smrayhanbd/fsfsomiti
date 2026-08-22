@@ -298,8 +298,11 @@ export async function submitWithdrawalRequest(memberId: string, formData: FormDa
     createdByLabel: "MEMBER_REQUEST_SYSTEM",
   }).catch(() => undefined)
 
-  revalidatePath("/portal/savings")
-  redirect("/portal/savings")
+  // The withdrawal form now lives on its own page (used to be a dialog on
+  // /portal/savings) — redirect back there so the member sees the new request
+  // in the recent-requests feed.
+  revalidatePath("/portal/withdrawal-request")
+  redirect("/portal/withdrawal-request")
 }
 
 // =====================================================================

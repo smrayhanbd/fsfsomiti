@@ -27,8 +27,6 @@ export default async function LandingPage() {
     visionTitle: "Our Vision & Mission",
     visionContent:
       "<p>To build a financially resilient community where every member has access to transparent, secure, and modern financial services — fostering growth, dignity, and prosperity for all.</p>",
-    transparency:
-      "<p>100% Transparency in Somiti Management. All transactions are recorded in real-time ledgers. Members have 24/7 access to their balances, the somiti's bank statements, and signed meeting minutes — and automated receipts ensure accountability for every Taka.</p>",
     // 7 community pillars
     whyJoinUs: [
       { icon: "Users", title: "Community Growth", description: "<p>A trusted circle of like-minded members pooling resources, sharing knowledge, and growing together — one cooperative decision at a time.</p>" },
@@ -63,15 +61,6 @@ export default async function LandingPage() {
       { value: "120+", label: "Loans Disbursed" },
       { value: "99.9%", label: "Uptime" },
     ],
-    // Horizontal scrolling security/trust badges
-    securityBadges: [
-      { label: "256-bit Encrypted Data", icon: "KeyRound" },
-      { label: "Trusted by Huge Members", icon: "Users" },
-      { label: "Automated Payouts", icon: "Banknote" },
-      { label: "A Group of Trusted People", icon: "ShieldCheck" },
-      { label: "Transparent Ledger", icon: "Eye" },
-      { label: "Bank-Grade Security", icon: "Landmark" },
-    ],
     facilities: [
       { icon: "Landmark", title: "Bank-Grade Security", description: "<p>AES-256 encryption, audit trails, and dual-control approvals on every transaction.</p>" },
       { icon: "Eye", title: "Real-Time Transparency", description: "<p>Live ledger, public bank statements, and signed meeting minutes — always.</p>" },
@@ -86,7 +75,29 @@ export default async function LandingPage() {
   // Pass the content to the Client Component. The Prisma Json fields are
   // structurally arrays of items but typed as JsonValue, so cast through the
   // landing-content shape (the fields are only ever read, never mutated).
-  const landingContent: LandingContent = (content as unknown as LandingContent) ?? fallback
+  // The flat software-download columns are grouped into the nested
+  // androidApp/windowsApp objects the landing page consumes.
+  const landingContent: LandingContent = content
+    ? {
+        ...(content as unknown as LandingContent),
+        androidApp: content.androidAppUrl
+          ? {
+              url: content.androidAppUrl,
+              version: content.androidAppVersion,
+              sizeBytes: content.androidAppSizeBytes,
+              updatedAt: content.androidAppUpdatedAt?.toISOString() ?? null,
+            }
+          : null,
+        windowsApp: content.windowsAppUrl
+          ? {
+              url: content.windowsAppUrl,
+              version: content.windowsAppVersion,
+              sizeBytes: content.windowsAppSizeBytes,
+              updatedAt: content.windowsAppUpdatedAt?.toISOString() ?? null,
+            }
+          : null,
+      }
+    : fallback
 
   return <LandingPageClient content={landingContent} org={org} />
 }

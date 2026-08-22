@@ -1,0 +1,3 @@
+# Regenerable build inputs (NuGet cache + extracted reference DLLs).
+packages/
+lib/

@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Trash2, Save, ChevronDown, Info } from "lucide-react"
+import { Plus, Trash2, Save, ChevronDown, Info, Download, Smartphone, Monitor } from "lucide-react"
+import { toast } from "sonner"
 import RichTextEditor from "@/components/RichTextEditor"
 import CommitteeSyncPanel from "./CommitteeSyncPanel"
 
@@ -53,18 +54,66 @@ interface SiteContentData {
   aboutContent: string
   visionTitle: string
   visionContent: string
-  transparency: string
   policyContent: string
+  softwareTitle: string
+  softwareDescription: string
+  androidAppVersion: string
+  androidAppUrl: string | null
+  androidAppSizeBytes: number | null
+  androidAppUpdatedAt: string | null
+  windowsAppVersion: string
+  windowsAppUrl: string | null
+  windowsAppSizeBytes: number | null
+  windowsAppUpdatedAt: string | null
   whyJoinUs: ContentItem[]
   howWeRun: ContentItem[]
   howItWorks: ContentItem[]
   stats: ContentItem[]
-  securityBadges: ContentItem[]
   facilities: ContentItem[]
   management: ContentItem[]
   activities: ContentItem[]
   projects: ContentItem[]
   [key: string]: unknown
+}
+
+/** Human-readable file size for the software-download cards. */
+function formatBytes(bytes: number | null): string | null {
+  if (!bytes || bytes <= 0) return null
+  const mb = bytes / (1024 * 1024)
+  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
+
+/** Current-upload status line for one platform (Android / Windows). */
+function SoftwareFileSummary({
+  url,
+  version,
+  sizeBytes,
+  updatedAt,
+}: {
+  url: string | null
+  version: string | null
+  sizeBytes: number | null
+  updatedAt: string | null
+}) {
+  if (!url) {
+    return (
+      <p className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+        No file uploaded yet — this platform is hidden on the landing page.
+      </p>
+    )
+  }
+  const size = formatBytes(sizeBytes)
+  const updated = updatedAt ? new Date(updatedAt).toLocaleDateString() : null
+  return (
+    <div className="flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+      <Download className="h-3.5 w-3.5 shrink-0" />
+      <span>
+        Uploaded{version ? ` ${version}` : ""}
+        {size ? ` · ${size}` : ""}
+        {updated ? ` · ${updated}` : ""} — uploading a new file replaces it.
+      </span>
+    </div>
+  )
 }
 
 interface ActiveMember {
@@ -101,7 +150,7 @@ export default function SiteContentForm({ content, activeMembers = [] }: { conte
   const cleanArray = (arr?: ContentItem[]) => (arr ?? []).map(({ _file, ...rest }) => rest)
 
   return (
-    <form action={(formData) => {
+    <form action={async (formData) => {
       // Append text fields
       formData.append("heroTitle", data.heroTitle || "")
       formData.append("heroSubtitle", data.heroSubtitle || "")
@@ -112,15 +161,19 @@ export default function SiteContentForm({ content, activeMembers = [] }: { conte
       formData.append("aboutContent", data.aboutContent || "")
       formData.append("visionTitle", data.visionTitle || "")
       formData.append("visionContent", data.visionContent || "")
-      formData.append("transparency", data.transparency || "")
       formData.append("policyContent", data.policyContent || "")
+      formData.append("softwareTitle", data.softwareTitle || "")
+      formData.append("softwareDescription", data.softwareDescription || "")
+      formData.append("androidAppVersion", data.androidAppVersion || "")
+      formData.append("windowsAppVersion", data.windowsAppVersion || "")
+      // The .apk/.exe file inputs and the remove-* checkboxes are plain named
+      // inputs, so they are already part of formData.
 
       // Append clean JSON arrays (without the File objects)
       formData.append("whyJoinUs", JSON.stringify(cleanArray(data.whyJoinUs)))
       formData.append("howWeRun", JSON.stringify(cleanArray(data.howWeRun)))
       formData.append("howItWorks", JSON.stringify(cleanArray(data.howItWorks)))
       formData.append("stats", JSON.stringify(cleanArray(data.stats)))
-      formData.append("securityBadges", JSON.stringify(cleanArray(data.securityBadges)))
       formData.append("facilities", JSON.stringify(cleanArray(data.facilities)))
       formData.append("management", JSON.stringify(cleanArray(data.management)))
       formData.append("activities", JSON.stringify(cleanArray(data.activities)))
@@ -138,7 +191,17 @@ export default function SiteContentForm({ content, activeMembers = [] }: { conte
       appendFiles("projects", data.projects)
       appendFiles("activities", data.activities)
 
-      updateSiteContent(formData)
+      try {
+        await updateSiteContent(formData)
+      } catch (err) {
+        // Successful saves redirect (which throws NEXT_REDIRECT and is
+        // rethrown by Next); anything else is a real save failure (e.g. an
+        // oversize .apk) — surface it instead of failing silently.
+        if (err && typeof err === "object" && "digest" in err) throw err
+        toast.error("Save failed", {
+          description: err instanceof Error ? err.message : "Please check your inputs and try again.",
+        })
+      }
     }} className="space-y-8 pb-20">
 
       {/* ─── Hero & About Section ─── */}
@@ -209,29 +272,6 @@ export default function SiteContentForm({ content, activeMembers = [] }: { conte
         </CardContent>
       </Card>
 
-      {/* ─── Security Marquee ─── */}
-      <Card className="shadow-sm rounded-xl border-slate-200">
-        <CardHeader>
-          <CardTitle>Security Marquee <span className="text-xs text-slate-500 font-normal">(horizontal scrolling trust badges)</span></CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <p className="text-xs text-slate-500 flex items-start gap-2">
-            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-            Pick an icon name and a short label. Defaults: 256-bit Encrypted Data, Trusted by Huge Members, Automated Payouts, A Group of Trusted People, Transparent Ledger, Bank-Grade Security.
-          </p>
-          <IconPicklistEditor
-            arrayName="securityBadges"
-            items={data.securityBadges}
-            fields={["icon", "label"]}
-            labels={["Icon", "Label"]}
-            onAdd={(f) => addArrayItem("securityBadges", f)}
-            onRemove={(i) => removeArrayItem("securityBadges", i)}
-            onChange={(i, f, v) => handleArrayChange("securityBadges", i, f, v)}
-            itemTitleField="label"
-          />
-        </CardContent>
-      </Card>
-
       {/* ─── Pillars / What We Do ─── */}
       <Card className="shadow-sm rounded-xl border-slate-200">
         <CardHeader>
@@ -280,14 +320,107 @@ export default function SiteContentForm({ content, activeMembers = [] }: { conte
         </CardContent>
       </Card>
 
-      {/* ─── Transparency & Policy ─── */}
+      {/* ─── Download Software ─── */}
       <Card className="shadow-sm rounded-xl border-slate-200">
-        <CardHeader><CardTitle>Transparency & Policy</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
+        <CardHeader>
+          <CardTitle>Download Software <span className="text-xs text-slate-500 font-normal">(Android APK + Windows EXE shown on the landing page)</span></CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <p className="text-xs text-slate-500 flex items-start gap-2">
+            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            Upload an .apk and/or .exe (max 100 MB each). A platform card appears on the landing page
+            once its file is uploaded; the section is hidden while no file exists.
+          </p>
           <div className="space-y-2">
-            <Label>Transparency Text</Label>
-            <RichTextEditor value={data.transparency ?? ""} onChange={(val) => handleChange("transparency", val)} />
+            <Label>Section Title</Label>
+            <Input
+              value={data.softwareTitle ?? ""}
+              onChange={(e) => handleChange("softwareTitle", e.target.value)}
+              placeholder="e.g. Take Your Somiti Everywhere"
+            />
           </div>
+          <div className="space-y-2">
+            <Label>Section Description</Label>
+            <RichTextEditor
+              value={data.softwareDescription ?? ""}
+              onChange={(val) => handleChange("softwareDescription", val)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {/* Android */}
+            <div className="space-y-3 rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+              <p className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                <Smartphone className="h-4 w-4 text-emerald-600" /> Android App (.apk)
+              </p>
+              <SoftwareFileSummary
+                url={data.androidAppUrl}
+                version={data.androidAppVersion}
+                sizeBytes={data.androidAppSizeBytes}
+                updatedAt={data.androidAppUpdatedAt}
+              />
+              <div className="space-y-1">
+                <Label className="text-xs uppercase text-slate-500">Version Label</Label>
+                <Input
+                  name="androidAppVersion"
+                  value={data.androidAppVersion ?? ""}
+                  onChange={(e) => handleChange("androidAppVersion", e.target.value)}
+                  placeholder="e.g. v1.2.0"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs uppercase text-slate-500">APK File</Label>
+                <Input type="file" name="androidAppFile" accept=".apk" className="max-w-xs" />
+              </div>
+              {data.androidAppUrl && (
+                <label className="flex items-center gap-2 text-xs text-slate-500">
+                  <input type="checkbox" name="removeAndroidApp" className="h-4 w-4 rounded border-slate-300" />
+                  Remove the uploaded APK (hides the Android card on the landing page)
+                </label>
+              )}
+            </div>
+
+            {/* Windows */}
+            <div className="space-y-3 rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+              <p className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                <Monitor className="h-4 w-4 text-sky-600" /> Windows App (.exe)
+              </p>
+              <SoftwareFileSummary
+                url={data.windowsAppUrl}
+                version={data.windowsAppVersion}
+                sizeBytes={data.windowsAppSizeBytes}
+                updatedAt={data.windowsAppUpdatedAt}
+              />
+              <div className="space-y-1">
+                <Label className="text-xs uppercase text-slate-500">Version Label</Label>
+                <Input
+                  name="windowsAppVersion"
+                  value={data.windowsAppVersion ?? ""}
+                  onChange={(e) => handleChange("windowsAppVersion", e.target.value)}
+                  placeholder="e.g. v1.2.0"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs uppercase text-slate-500">EXE File</Label>
+                <Input type="file" name="windowsAppFile" accept=".exe" className="max-w-xs" />
+              </div>
+              {data.windowsAppUrl && (
+                <label className="flex items-center gap-2 text-xs text-slate-500">
+                  <input type="checkbox" name="removeWindowsApp" className="h-4 w-4 rounded border-slate-300" />
+                  Remove the uploaded EXE (hides the Windows card on the landing page)
+                </label>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ─── Somiti Policy ─── */}
+      <Card className="shadow-sm rounded-xl border-slate-200">
+        <CardHeader>
+          <CardTitle>Somiti Policy <span className="text-xs text-slate-500 font-normal">(shown at /policy)</span></CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Somiti Policy Content</Label>
             <RichTextEditor value={data.policyContent || ""} onChange={(val) => handleChange("policyContent", val)} />

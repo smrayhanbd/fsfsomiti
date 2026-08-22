@@ -391,28 +391,6 @@
     background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--brand-primary) 35%, transparent), transparent);
   }
 
-  /* ---- Marquee (horizontal scrolling trust badges) ----
-     Two identical tracks sit side-by-side; the wrapper animates left by 50%
-     so when the first track exits the viewport the second is exactly in
-     place, giving a seamless infinite scroll. */
-  .marquee-mask {
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
-            mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
-  }
-  .marquee-track {
-    display: flex;
-    width: max-content;
-    animation: marquee-scroll var(--marquee-duration, 40s) linear infinite;
-    will-change: transform;
-  }
-  .marquee-host:hover .marquee-track {
-    animation-play-state: paused;
-  }
-  @keyframes marquee-scroll {
-    from { transform: translate3d(0, 0, 0); }
-    to   { transform: translate3d(-50%, 0, 0); }
-  }
-
   /* ---- Animated aurora glow used in the hero background ---- */
   .aurora-glow {
     position: absolute;
@@ -540,6 +518,22 @@
   .money-receipt th { background: #f5f5f5 !important; }
   .money-receipt, .money-receipt .signature-row { break-inside: avoid; }
   @page { margin: 12mm; }
+}
+
+/* =====================================================================
+   MONEY RECEIPT — Mobile scale-to-fit reset
+   ---------------------------------------------------------------------
+   MoneyReceipt.tsx renders the voucher at a fixed 896px desktop width and
+   applies an inline `zoom` on narrow viewports so phones see the identical
+   desktop composition, proportionally scaled. Print must always be
+   full-scale and page-width — the !important is required to beat those
+   inline styles.
+   ===================================================================== */
+@media print {
+  .receipt-scale-card {
+    zoom: 1 !important;
+    width: 100% !important;
+  }
 }
 
 /* =====================================================================

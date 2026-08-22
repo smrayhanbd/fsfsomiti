@@ -32,7 +32,11 @@ export interface PortalNotification {
 function usePageTitle(): string {
   const pathname = usePathname()
   if (pathname === "/portal") return "Dashboard"
+  if (pathname.startsWith("/portal/deposit-request")) return "Deposit Request"
+  if (pathname.startsWith("/portal/withdrawal-request")) return "Withdrawal Request"
   if (pathname.startsWith("/portal/savings")) return "My Savings"
+  if (pathname.startsWith("/portal/ledger")) return "View Ledger"
+  if (pathname.startsWith("/portal/receipts")) return "Money Receipt"
   if (pathname.startsWith("/portal/loans/apply")) return "Apply for Loan"
   if (pathname.startsWith("/portal/loans/")) return "Loan Details"
   if (pathname.startsWith("/portal/loans")) return "My Loans"

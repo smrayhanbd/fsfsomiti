@@ -1,6 +1,7 @@
 "use server"
 
 import { uploadImage } from "@/lib/cloudinary"
+import { saveUploadedFile } from "@/lib/upload"
 import prisma from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
@@ -76,7 +77,6 @@ export async function updateSiteContent(formData: FormData) {
   const aboutContent = formData.get("aboutContent") as string
   const visionTitle = formData.get("visionTitle") as string
   const visionContent = formData.get("visionContent") as string
-  const transparency = formData.get("transparency") as string
   const policyContent = (formData.get("policyContent") as string) || null
 
   // Parse JSON arrays from hidden inputs through Zod so malformed payloads
@@ -86,11 +86,81 @@ export async function updateSiteContent(formData: FormData) {
   const howWeRun = parseSiteArray(formData.get("howWeRun") as string, "howWeRun")
   const howItWorks = parseSiteArray(formData.get("howItWorks") as string, "howItWorks")
   const stats = parseSiteArray(formData.get("stats") as string, "stats")
-  const securityBadges = parseSiteArray(formData.get("securityBadges") as string, "securityBadges")
   const facilities = parseSiteArray(formData.get("facilities") as string, "facilities")
   const management = parseSiteArray(formData.get("management") as string, "management")
   const activities = parseSiteArray(formData.get("activities") as string, "activities")
   const projects = parseSiteArray(formData.get("projects") as string, "projects")
+
+  // ── Download Software section ─────────────────────────────────────────
+  // Admin uploads .apk / .exe installers from the Landing Page Content form.
+  // URL / size / updatedAt are only rewritten when a NEW file is uploaded (or
+  // explicitly cleared via the remove checkbox); `undefined` keys below mean
+  // "keep the stored value" in the Prisma update and "null" in the create.
+  const SOFTWARE_MAX_BYTES = 100 * 1024 * 1024
+  const VersionSchema = z.string().max(50)
+
+  const softwareTitle = (formData.get("softwareTitle") as string) || null
+  const softwareDescription = (formData.get("softwareDescription") as string) || null
+  const androidVersionRaw = ((formData.get("androidAppVersion") as string) || "").trim()
+  const windowsVersionRaw = ((formData.get("windowsAppVersion") as string) || "").trim()
+  for (const v of [androidVersionRaw, windowsVersionRaw]) {
+    const parsed = VersionSchema.safeParse(v)
+    if (!parsed.success) {
+      throw new Error("App version labels must be 50 characters or fewer.")
+    }
+  }
+
+  const software: {
+    softwareTitle: string | null
+    softwareDescription: string | null
+    androidAppVersion: string | null
+    windowsAppVersion: string | null
+    androidAppUrl?: string | null
+    androidAppSizeBytes?: number | null
+    androidAppUpdatedAt?: Date | null
+    windowsAppUrl?: string | null
+    windowsAppSizeBytes?: number | null
+    windowsAppUpdatedAt?: Date | null
+  } = {
+    softwareTitle,
+    softwareDescription,
+    androidAppVersion: androidVersionRaw || null,
+    windowsAppVersion: windowsVersionRaw || null,
+  }
+
+  const androidFile = formData.get("androidAppFile")
+  if (androidFile instanceof File && androidFile.size > 0) {
+    const saved = await saveUploadedFile(androidFile, "software-downloads", {
+      maxBytes: SOFTWARE_MAX_BYTES,
+      allowedExtensions: ["apk"],
+      // "raw" — Cloudinary's "auto" rejects unknown binary extensions.
+      resourceType: "raw",
+    })
+    software.androidAppUrl = saved.url
+    software.androidAppSizeBytes = androidFile.size
+    software.androidAppUpdatedAt = new Date()
+  } else if (formData.get("removeAndroidApp") === "on") {
+    software.androidAppUrl = null
+    software.androidAppSizeBytes = null
+    software.androidAppUpdatedAt = null
+  }
+
+  const windowsFile = formData.get("windowsAppFile")
+  if (windowsFile instanceof File && windowsFile.size > 0) {
+    const saved = await saveUploadedFile(windowsFile, "software-downloads", {
+      maxBytes: SOFTWARE_MAX_BYTES,
+      allowedExtensions: ["exe"],
+      // "raw" — Cloudinary's "auto" rejects unknown binary extensions.
+      resourceType: "raw",
+    })
+    software.windowsAppUrl = saved.url
+    software.windowsAppSizeBytes = windowsFile.size
+    software.windowsAppUpdatedAt = new Date()
+  } else if (formData.get("removeWindowsApp") === "on") {
+    software.windowsAppUrl = null
+    software.windowsAppSizeBytes = null
+    software.windowsAppUpdatedAt = null
+  }
 
   // Helper function to handle file uploads for arrays
   const processArrayImages = async (arrayName: string, array: SiteContentItem[]) => {
@@ -114,18 +184,20 @@ export async function updateSiteContent(formData: FormData) {
     where: { id: "singleton" },
     update: {
       heroTitle, heroSubtitle, heroBadge, heroCtaPrimary, heroCtaSecondary,
-      aboutTitle, aboutContent, visionTitle, visionContent, transparency,
+      aboutTitle, aboutContent, visionTitle, visionContent,
       policyContent,
-      whyJoinUs, howWeRun, howItWorks, stats, securityBadges,
-      facilities, management, activities, projects
+      whyJoinUs, howWeRun, howItWorks, stats,
+      facilities, management, activities, projects,
+      ...software,
     },
     create: {
       id: "singleton",
       heroTitle, heroSubtitle, heroBadge, heroCtaPrimary, heroCtaSecondary,
-      aboutTitle, aboutContent, visionTitle, visionContent, transparency,
+      aboutTitle, aboutContent, visionTitle, visionContent,
       policyContent,
-      whyJoinUs, howWeRun, howItWorks, stats, securityBadges,
-      facilities, management, activities, projects
+      whyJoinUs, howWeRun, howItWorks, stats,
+      facilities, management, activities, projects,
+      ...software,
     }
   })
 

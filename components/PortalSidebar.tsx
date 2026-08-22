@@ -11,7 +11,7 @@ import {
   LayoutDashboard, Wallet, HandCoins, FilePlus2, User,
   Inbox, Settings as SettingsIcon, LogOut, ChevronLeft, ChevronRight,
   Building2, ShieldCheck, CheckSquare, Landmark, Gem, Briefcase, FileText,
-  ArrowDownToLine, Vote,
+  ArrowDownToLine, ArrowUpFromLine, Receipt, Vote,
   type LucideIcon,
 } from "lucide-react"
 import type { OrgInfo } from "@/lib/organization"
@@ -60,12 +60,25 @@ function buildMenu(pendingRequests = 0, transparency: TransparencyFlags = DEFAUL
       items: [{ label: "Dashboard", icon: LayoutDashboard, href: "/portal" }],
     },
     {
-      title: "Finance",
+      title: "Deposit & Withdrawal",
       items: [
         { label: "Deposit Request", icon: ArrowDownToLine, href: "/portal/deposit-request" },
+        { label: "Withdrawal Request", icon: ArrowUpFromLine, href: "/portal/withdrawal-request" },
+      ],
+    },
+    {
+      title: "Finance",
+      items: [
         { label: "View Savings", icon: Wallet, href: "/portal/savings" },
         { label: "Manage Loans", icon: HandCoins, href: "/portal/loans" },
         { label: "View Trust Score", icon: ShieldCheck, href: "/portal/trust-score" },
+      ],
+    },
+    {
+      title: "View Reports",
+      items: [
+        { label: "View Ledger", icon: FileText, href: "/portal/ledger" },
+        { label: "Money Receipt", icon: Receipt, href: "/portal/receipts" },
       ],
     },
   ]

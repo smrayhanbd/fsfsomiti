@@ -30,8 +30,19 @@ function normalizeContent(c: NonNullable<Awaited<ReturnType<typeof prisma.siteCo
     aboutContent: c.aboutContent ?? "",
     visionTitle: c.visionTitle ?? "",
     visionContent: c.visionContent ?? "",
-    transparency: c.transparency ?? "",
     policyContent: c.policyContent ?? "",
+    // Download Software section — dates cross the Server→Client boundary as
+    // ISO strings; sizes stay as raw bytes (formatted client-side).
+    softwareTitle: c.softwareTitle ?? "",
+    softwareDescription: c.softwareDescription ?? "",
+    androidAppVersion: c.androidAppVersion ?? "",
+    androidAppUrl: c.androidAppUrl ?? null,
+    androidAppSizeBytes: c.androidAppSizeBytes ?? null,
+    androidAppUpdatedAt: c.androidAppUpdatedAt ? c.androidAppUpdatedAt.toISOString() : null,
+    windowsAppVersion: c.windowsAppVersion ?? "",
+    windowsAppUrl: c.windowsAppUrl ?? null,
+    windowsAppSizeBytes: c.windowsAppSizeBytes ?? null,
+    windowsAppUpdatedAt: c.windowsAppUpdatedAt ? c.windowsAppUpdatedAt.toISOString() : null,
     // Json columns come back as Prisma.JsonValue (which includes primitive
     // types). The schema documents these as arrays of objects, but the type
     // system can't see that — so we coerce defensively: a non-array value
@@ -40,7 +51,6 @@ function normalizeContent(c: NonNullable<Awaited<ReturnType<typeof prisma.siteCo
     howWeRun: Array.isArray(c.howWeRun) ? (c.howWeRun as unknown[]) : [],
     howItWorks: Array.isArray(c.howItWorks) ? (c.howItWorks as unknown[]) : [],
     stats: Array.isArray(c.stats) ? (c.stats as unknown[]) : [],
-    securityBadges: Array.isArray(c.securityBadges) ? (c.securityBadges as unknown[]) : [],
     facilities: Array.isArray(c.facilities) ? (c.facilities as unknown[]) : [],
     management: Array.isArray(c.management) ? (c.management as unknown[]) : [],
     activities: Array.isArray(c.activities) ? (c.activities as unknown[]) : [],
@@ -65,9 +75,12 @@ export default async function ManageSiteContentPage() {
         id: "singleton" as const,
         heroTitle: "", heroSubtitle: "", heroBadge: "", heroCtaPrimary: "", heroCtaSecondary: "",
         aboutTitle: "", aboutContent: "", visionTitle: "", visionContent: "",
-        transparency: "", policyContent: "",
+        policyContent: "",
+        softwareTitle: "", softwareDescription: "",
+        androidAppVersion: "", androidAppUrl: null, androidAppSizeBytes: null, androidAppUpdatedAt: null,
+        windowsAppVersion: "", windowsAppUrl: null, windowsAppSizeBytes: null, windowsAppUpdatedAt: null,
         whyJoinUs: [] as unknown[], howWeRun: [] as unknown[], howItWorks: [] as unknown[],
-        stats: [] as unknown[], securityBadges: [] as unknown[],
+        stats: [] as unknown[],
         facilities: [] as unknown[], management: [] as unknown[],
         activities: [] as unknown[], projects: [] as unknown[],
         updatedAt: new Date(),
@@ -86,7 +99,7 @@ export default async function ManageSiteContentPage() {
         <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Landing Page Content</h1>
         <p className="text-slate-500 dark:text-slate-400 mt-1">
           Manage every section of your public website — hero, stats, pillars, member-portal features,
-          transparency text, management committee, projects, and activities.
+          software downloads, somiti policy, management committee, projects, and activities.
         </p>
       </div>
       {/*
