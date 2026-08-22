@@ -645,7 +645,9 @@ export default function LandingPageClient({ content, org }: { content: LandingCo
               className="mx-auto mb-8 max-w-2xl text-center sm:mb-14"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: false, amount: 0.3 }}
+              // No `amount` threshold: the rich-text description can be taller
+              // than the viewport, which would make a 0.3 requirement unreachable.
+              viewport={{ once: false }}
               transition={{ duration: 0.5 }}
             >
               <p className="t-overline mb-3 text-brand">Get the App</p>
