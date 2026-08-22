@@ -347,6 +347,12 @@
   /* Stat-card figures: shrink on narrow mobile cards (grid-cols-2 KPI ribbon)
      so lakh/crore amounts fit; reaches the full t-h2 size from tablet up. */
   .t-stat-value { font-size: clamp(1.0625rem, 2.2vw + 0.7rem, 1.5rem); line-height: 1.2; font-weight: 700; letter-spacing: -0.02em; }
+  /* Phones (<640px): the KPI ribbon is 2 columns, leaving roughly 90px for the
+     figure — the tablet/desktop clamp above still truncates after ~2 digits
+     there, so scale the figure down hard. ≥640px is untouched. */
+  @media (max-width: 639px) {
+    .t-stat-value { font-size: clamp(0.7rem, 2.8vw + 0.15rem, 1.0625rem); }
+  }
   .t-h3 { font-size: 1.25rem; line-height: 1.3; font-weight: 600; letter-spacing: -0.015em; }
   .t-subheading { font-size: 0.9375rem; line-height: 1.4; font-weight: 600; letter-spacing: -0.01em; }
   .t-body-lg { font-size: 1.0625rem; line-height: 1.6; }
