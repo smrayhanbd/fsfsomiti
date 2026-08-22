@@ -10,7 +10,6 @@ import { useSearchParams } from "next/navigation"
 import { Mail, CheckCircle2, ArrowLeft, AlertTriangle } from "lucide-react"
 import TrustRibbon from "@/components/somiti/TrustRibbon"
 import ThemeToggle from "@/components/ThemeToggle"
-import LanguageToggle from "@/components/somiti/LanguageToggle"
 
 function ForgotPasswordContent() {
   const searchParams = useSearchParams()
@@ -25,7 +24,6 @@ function ForgotPasswordContent() {
     <div className="relative flex min-h-screen flex-col bg-base">
       <TrustRibbon />
       <div className="absolute right-4 top-4 z-20 flex items-center gap-2">
-        <LanguageToggle compact />
         <ThemeToggle />
       </div>
       <div className="flex flex-1 items-center justify-center px-4 py-12">

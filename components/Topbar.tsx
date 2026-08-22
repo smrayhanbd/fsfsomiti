@@ -16,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useMounted } from "@/lib/useMounted"
-import LanguageToggle from "@/components/somiti/LanguageToggle"
 import OrgLogo from "@/components/somiti/OrgLogo"
 import { markNotificationRead } from "@/app/actions/notifications"
 import type { OrgInfo } from "@/lib/organization"
@@ -92,8 +91,6 @@ export default function Topbar({ onMenuClick, notifications = [], org }: { onMen
             {theme === 'dark' ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
           </Button>
         )}
-
-        <LanguageToggle compact />
 
         {/* Notifications */}
         <DropdownMenu>

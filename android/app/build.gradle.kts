@@ -22,8 +22,8 @@ android {
         applicationId = "com.fsf.somiti"
         minSdk = 24
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.1.1"
+        versionCode = 4
+        versionName = "1.2.0"
 
         // The web app this shell wraps. Override with:
         //   gradle assembleRelease -PSERVER_URL=https://your-deployment.vercel.app

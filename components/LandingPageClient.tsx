@@ -653,7 +653,7 @@ export default function LandingPageClient({ content, org }: { content: LandingCo
                 {content.softwareTitle || "Take your somiti everywhere"}
               </h2>
               {content.softwareDescription ? (
-                <div className="t-body-lg text-justify text-muted-ink" dangerouslySetInnerHTML={{ __html: content.softwareDescription }} />
+                <div className="prose prose-lg max-w-none text-justify text-secondary-ink dark:prose-invert" dangerouslySetInnerHTML={{ __html: content.softwareDescription }} />
               ) : (
                 <p className="t-body-lg text-justify text-muted-ink">
                   Manage your savings, requests, and statements from your phone or PC — download the official app.

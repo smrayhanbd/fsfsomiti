@@ -4,7 +4,6 @@ import ThemeToggle from "@/components/ThemeToggle"
 import { Button } from "@/components/ui/button"
 import { Building2, ShieldCheck, Lock, Receipt, TrendingUp, FileText, Mail, Phone, MapPin } from "lucide-react"
 import TrustRibbon from "@/components/somiti/TrustRibbon"
-import LanguageToggle from "@/components/somiti/LanguageToggle"
 import OrgLogo from "@/components/somiti/OrgLogo"
 import { getOrganization, orgAddressLine } from "@/lib/organization"
 
@@ -111,7 +110,6 @@ export default async function RegisterPage() {
               <p className="t-body mt-1 text-muted-ink">Please fill out all sections accurately. Your application will be reviewed by management.</p>
             </div>
             <div className="flex items-center gap-2">
-              <LanguageToggle compact />
               <ThemeToggle />
               {/* Desktop View (Text Link) */}
               <Link href="/login" className="hidden t-body font-medium text-brand hover:underline sm:block">Back to Login</Link>
