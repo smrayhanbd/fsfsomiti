@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "./prisma";
 import bcrypt from "bcryptjs";
 import { verifyMfaToken } from "@/lib/mfa";
+import { loginLimiter } from "@/lib/rateLimit";
 
 // ───────────────────────────────────────────────────────────────────────────
 // BCRYPT COST
@@ -50,19 +51,30 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email or Member ID", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
 
-        // PERFORMANCE: Use Promise.all to check both admin and member tables
-        // in parallel instead of sequentially. bcrypt.compare is the slow part
-        // (~100-250ms at cost 10), so parallelizing saves that full duration
-        // when the user is a member (not an admin).
-        //
-        // We fetch both rows up-front, then decide which password to compare
-        // based on which row exists.
-        const [adminUser, memberAccount] = await Promise.all([
+        // AUTHORITATIVE per-IP login rate limit (10/min). This used to live
+        // in a client-side "pre-check" server action — which cost every login
+        // a full extra roundtrip (browser → action → Upstash → back) before
+        // signIn() even started. It now runs here, IN PARALLEL with the
+        // account lookups so the Upstash roundtrip hides behind the DB
+        // queries, and still gates before any bcrypt work below.
+        const ip =
+          (typeof req?.headers?.get === "function" &&
+            (req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip"))) ||
+          "dev";
+        const clientIp = String(ip).split(",")[0].trim() || "dev";
+
+        // PERFORMANCE: Use Promise.all to check the rate limit and both
+        // account tables in parallel instead of sequentially. bcrypt.compare
+        // is the slow part (~100-250ms at cost 10), so parallelizing saves
+        // that full duration when the user is a member (not an admin).
+        const [rateLimit, adminUser, memberAccount] = await Promise.all([
+          // Limiter outage (e.g. Redis hiccup) must never block login.
+          loginLimiter.limit(clientIp).catch(() => null),
           prisma.user.findUnique({
             where: { email: credentials.email },
             select: {
@@ -89,6 +101,13 @@ export const authOptions: NextAuthOptions = {
             },
           }),
         ]);
+
+        // Rate-limit gate — deny before any password work. Returned as a
+        // plain null (indistinguishable from bad credentials) so an attacker
+        // gets no signal about why they were rejected.
+        if (rateLimit && !rateLimit.success) {
+          return null;
+        }
 
         // 1. Try admin login first (admins take priority)
         if (adminUser) {

@@ -1,24 +1,23 @@
 "use server"
 
 /**
- * Rate-limit pre-check server actions.
+ * Rate-limit helper server actions.
  *
- * These are tiny server actions the client calls BEFORE the actual auth flow
- * (signIn / register / password reset) so we can fail fast with a friendly
- * "Too many attempts" message instead of letting the user submit and get a
- * generic auth error.
+ * `checkRegisterRateLimit` is a client pre-check the register form calls
+ * before submitting (friendly fail-fast UX); the authoritative register
+ * limiter also runs inside the register server action. Password reset is
+ * checked server-side only (`assertPasswordResetAllowed`).
+ *
+ * LOGIN deliberately has NO pre-check action: it used to add a full extra
+ * browser→server→Upstash roundtrip to every login. The login limiter now
+ * runs authoritatively INSIDE NextAuth's authorize() (lib/auth.ts), in
+ * parallel with the account lookups, so it costs no additional latency.
  *
  * The IP is obtained from `headers()` (server-side) — never trust a
  * client-supplied IP.
- *
- * NOTE: the actual auth server action (`requestPasswordReset` in
- * `app/actions/auth.ts`) ALSO calls the limiter — defense in depth. The
- * client-side check is the "fast" path; the server-side check is the
- * authoritative one (it runs even if the user disables JS).
  */
 import { headers } from "next/headers"
 import {
-  loginLimiter,
   passwordResetLimiter,
   registerLimiter,
   formatRetryAfter,
@@ -52,17 +51,6 @@ function toCheck(r: RateLimitResult): RateLimitCheck {
     remaining: r.remaining,
     limit: r.limit,
   }
-}
-
-/**
- * Pre-check the login rate limit. The client calls this BEFORE `signIn()`.
- * Returns `{ ok: false, retryAfter }` if the IP is over limit — the client
- * shows the retry-after string to the user.
- */
-export async function checkLoginRateLimit(): Promise<RateLimitCheck> {
-  const ip = await getClientIp()
-  const r = await loginLimiter.limit(ip)
-  return toCheck(r)
 }
 
 /**

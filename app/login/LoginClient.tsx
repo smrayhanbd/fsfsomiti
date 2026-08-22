@@ -13,7 +13,6 @@ import ThemeToggle from "@/components/ThemeToggle"
 import OrgLogo from "@/components/somiti/OrgLogo"
 import type { OrgInfo } from "@/lib/organization"
 import { orgAddressLine } from "@/lib/organization"
-import { checkLoginRateLimit } from "@/app/actions/rateLimitActions"
 
 export default function LoginClient({ org }: { org: OrgInfo }) {
   const router = useRouter()
@@ -33,30 +32,10 @@ export default function LoginClient({ org }: { org: OrgInfo }) {
     const email = formData.get("email") as string
     const password = formData.get("password") as string
 
-    // Pre-check the per-IP login rate limit BEFORE submitting to NextAuth.
-    // The authoritative check still runs server-side inside `authorize()`,
-    // so a user with JS disabled can't bypass this — it's just UX: fail
-    // fast with a friendly "Too many attempts" message instead of letting
-    // them submit and get a generic CredentialsSignin error.
-    try {
-      const rl = await checkLoginRateLimit()
-      if (!rl.ok) {
-        setError(
-          rl.retryAfter
-            ? `Too many attempts, try again in ${rl.retryAfter}.`
-            : "Too many attempts, try again in a minute.",
-        )
-        setLoading(false)
-        return
-      }
-    } catch {
-      // If the rate-limit check itself errors (e.g. Redis hiccup), don't
-      // block the login attempt — the server-side check still applies.
-      // Just log and continue.
-       
-      console.warn("[login] rate-limit pre-check failed; continuing to auth")
-    }
-
+    // NOTE: the per-IP login rate limit (10/min) is enforced AUTHORITATIVELY
+    // inside authorize() on the server — no client pre-check roundtrip here.
+    // This flow used to call a rate-limit server action BEFORE signIn(),
+    // adding a full browser→server→Upstash roundtrip to every login.
     const res = await signIn("credentials", {
       email,
       password,
@@ -64,6 +43,8 @@ export default function LoginClient({ org }: { org: OrgInfo }) {
     })
 
     if (res?.error) {
+      // Also shown when the rate limit kicks in — deliberately the same
+      // message as bad credentials so attackers can't tell the difference.
       setError("Invalid credentials. Please check your Email/Member ID and Password.")
       setLoading(false)
     } else if (res?.ok) {
